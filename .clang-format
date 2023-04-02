@@ -1,0 +1,5 @@
+BasedOnStyle: Microsoft
+PointerAlignment: Left
+ColumnLimit: 90
+AlignAfterOpenBracket: AlwaysBreak
+ReflowComments: False
