@@ -13,24 +13,21 @@
 /// ARC: https://github.com/FanTranslatorsInternational/Kuriimu2/tree/dev/plugins/Capcom/plugin_mt_framework/Archives
 /// GMD: https://github.com/IcySon55/Kuriimu/tree/master/src/text/text_gmd
 
-#include <filesystem>
-#include <stdexcept>
-#include <string>
-#include <vector>
+#include "Utility.hpp"
 
-using String = std::string;
-using VecByte = std::vector<std::byte>;
-using Path = std::filesystem::path;
+#pragma region ARC editing
 
-enum class ExtensionHash : uint32_t
+enum class ARC_ExtensionHash : uint32_t
 {
+    GMD = 0x242BB29A
 };
 
 struct ARC_Entry
 {
-    String filename;   ///< Entry name, without extension
-    ExtensionHash ext; ///< Number representing file type
-    VecByte content;   ///< Byte content of the file
+    String filename;       ///< Entry name, without extension
+    ARC_ExtensionHash ext; ///< Number representing file type
+    VecByte content;       ///< Byte content of the file, may be compressed.
+    uint32_t decompSize;   ///< The content size if decompressed.
 };
 
 struct ARC_Archive
@@ -40,6 +37,32 @@ struct ARC_Archive
 };
 
 /// Throws std::runtime_error on failure.
-ARC_Archive ARC_LoadFromFile(Path const& arcFilePath);
+ARC_Archive ARC_LoadFromFile(Stream& arc);
+
+VecByte ARC_DecompressEntry(ARC_Entry const& entry);
+
+#pragma endregion
+
+#pragma region GMD editing
+
+struct GMD_Entry
+{
+    std::string key;
+    std::string value;
+    uint32_t hash1{}; ///< Some hash based on 'key'
+    uint32_t hash2{}; ///< Some other hash based on 'key'
+};
+
+struct GMD_Registry
+{
+    uint32_t version;
+    uint32_t language;
+    std::string name;
+    std::vector<GMD_Entry> entries;
+};
+
+GMD_Registry GMD_LoadFromFile(Stream& gmd);
+
+#pragma endregion
 
 #endif
