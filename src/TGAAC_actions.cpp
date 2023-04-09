@@ -31,7 +31,7 @@ void TGAAC_ExtractGMD(Stream& gmdStream, Path const& destFolder)
 
     for (GMD_Entry const& entry : gmd.entries)
     {
-        String name = ConvertToID(entry.key) + ".txt";
+        String name = ConvertToID(entry.key) + ".jv.xml";
         if (mapNameEntry.contains(name))
             throw RuntimeError("Duplicated name '{}' in {}", name, gmdStream.Name());
         mapNameEntry.insert({name, entry});
@@ -52,7 +52,9 @@ void TGAAC_ExtractGMD(Stream& gmdStream, Path const& destFolder)
         FILE* f = fopen(dest.c_str(), "wb");
         if (f == nullptr)
             throw RuntimeError("Could not open file {}", dest.native());
-        fwrite(entry.value.data(), 1, entry.value.size(), f);
+
+        String value = GMD_EscapeEntryJV(entry.value);
+        fwrite(value.data(), 1, value.size(), f);
         fclose(f);
     }
 
@@ -168,15 +170,40 @@ void TGAAC_GlobalExtract(Path const& installFolder, Path const& extractFolder)
 
     mapNamePath.reserve(100);
     for (Path const& p : fs::recursive_directory_iterator(installFolder))
-        if (p.extension() == ".arc")
-            mapNamePath.emplace(ConvertToID(p.filename().string()), p);
+    {
+        if (p.extension() != ".arc")
+            continue;
+        Path arcPath = fs::relative(p, installFolder);
+        mapNamePath.emplace(ConvertToID(arcPath.string()), arcPath);
+    }
 
     fmt::print("Found {} ARC files\n", mapNamePath.size());
 
     for (auto& [name, arcPath] : mapNamePath)
     {
         fmt::print("Extracting {}...\n", name);
-        Stream arcStream{arcPath};
+        Stream arcStream{installFolder / arcPath};
         TGAAC_ExtractARC(arcStream, extractFolder / name);
     }
+
+    using namespace rapidjson;
+    FILE* f = fopen((extractFolder / "__META__.json").c_str(), "wb");
+    if (f == nullptr)
+        throw RuntimeError("Could not open file META.json");
+
+    char writeBuffer[65536];
+    FileWriteStream os{f, writeBuffer, sizeof(writeBuffer)};
+    PrettyWriter<FileWriteStream> json{os};
+
+    json.StartObject();
+    json.Key("entries");
+    json.StartObject();
+    for (auto& [name, arcPath] : mapNamePath)
+    {
+        json.Key(name.c_str());
+        json.String(arcPath.c_str());
+    }
+    json.EndObject();
+    json.EndObject();
+    fclose(f);
 }

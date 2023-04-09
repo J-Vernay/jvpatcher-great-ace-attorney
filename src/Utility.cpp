@@ -4,7 +4,7 @@
 #include "Utility.hpp"
 #include <cctype>
 
-String ConvertToID(String const& input)
+String ConvertToID(StringView input)
 {
     String output;
     output.reserve(input.size());

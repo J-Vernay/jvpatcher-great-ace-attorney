@@ -3,6 +3,8 @@
 
 #include "TGAAC_files.hpp"
 #include "Utility.hpp"
+#include <rapidjson/prettywriter.h>
+#include <rapidjson/stringbuffer.h>
 
 struct GMD_FileHeader
 {
@@ -126,6 +128,87 @@ GMD_Registry GMD_Load(Stream& gmd)
             entry.key = (char*)label.data();
         }
     }
+
+    return result;
+}
+
+String GMD_EscapeEntryJV(StringView input)
+{
+    String result;
+    result.reserve(input.size() * 1.5);
+
+    // An abbreviation is <JV123>
+    std::vector<std::pair<String, StringView>> abbrText;
+
+    constexpr StringView SPECIAL = "\r\n<";
+    constexpr StringView PAGE = "<PAGE>";
+
+    while (input.size() > 0)
+    {
+        size_t notSpecialCount = input.find_first_of(SPECIAL);
+        result += input.substr(0, notSpecialCount);
+        if (notSpecialCount >= input.size())
+            break;
+        input.remove_prefix(notSpecialCount);
+
+        if (input[0] == '\r')
+        {
+            input.remove_prefix(1);
+        }
+        else if (input[0] == '\n')
+        {
+            result += "<LINE/>\n";
+            input.remove_prefix(1);
+        }
+        else
+        {
+            size_t specialCount = 0;
+            for (StringView next = input;
+                 next.starts_with('<') && !next.starts_with(PAGE);)
+            {
+                size_t closingPos = next.find('>');
+                if (closingPos == input.npos)
+                    throw RuntimeError("Unclosed angle brackets");
+                specialCount += closingPos + 1;
+                next.remove_prefix(closingPos + 1);
+            }
+            if (specialCount > 0)
+            {
+                StringView special = input.substr(0, specialCount);
+                input.remove_prefix(specialCount);
+                String abbr = fmt::format("<JV{}/>", abbrText.size());
+                result += abbr;
+                abbrText.emplace_back(std::move(abbr), special);
+            }
+            if (input.starts_with(PAGE))
+            {
+                result += "<PAGE/>\n\n";
+                input.remove_prefix(PAGE.size());
+                while (input.starts_with('\r') || input.starts_with('\n'))
+                    input.remove_prefix(1);
+            }
+        }
+    }
+
+    /// Used to know when a file has been modified.
+    int64_t originalHash = std::hash<String>{}(result);
+
+    using namespace rapidjson;
+    StringBuffer buffer;
+    PrettyWriter<StringBuffer> json(buffer);
+    json.StartObject();
+    json.Key("__originalHash__");
+    json.Int64(originalHash);
+    for (auto& [abbr, text] : abbrText)
+    {
+        json.Key(abbr.c_str());
+        json.String(text.data(), text.size());
+    }
+    json.EndObject();
+
+    result += "\n<!--\n==========JV==========\n";
+    result += buffer.GetString();
+    result += "\n-->";
 
     return result;
 }

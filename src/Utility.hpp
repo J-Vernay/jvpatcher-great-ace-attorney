@@ -11,6 +11,7 @@
 #include <span>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <unordered_map>
 #include <vector>
@@ -18,6 +19,7 @@
 #include <fmt/format.h>
 
 using String = std::string;
+using StringView = std::string_view;
 using VecByte = std::vector<std::byte>;
 using SpanByte = std::span<std::byte>;
 using Path = std::filesystem::path;
@@ -25,7 +27,7 @@ template <typename Key, typename Value>
 using Map = std::unordered_map<Key, Value>;
 
 /// Removes directory separators and whitespaces.
-String ConvertToID(String const& input);
+String ConvertToID(StringView input);
 
 /// Used extensively for errors.
 struct RuntimeError : std::runtime_error

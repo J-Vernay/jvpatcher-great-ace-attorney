@@ -50,8 +50,8 @@ VecByte ARC_DecompressEntry(ARC_Entry const& entry);
 
 struct GMD_Entry
 {
-    std::string key;
-    std::string value;
+    String key;
+    String value;
     uint32_t hash1{}; ///< Some hash based on 'key'
     uint32_t hash2{}; ///< Some other hash based on 'key'
 };
@@ -60,11 +60,16 @@ struct GMD_Registry
 {
     uint32_t version;
     uint32_t language;
-    std::string name;
+    String name;
     std::vector<GMD_Entry> entries;
 };
 
 GMD_Registry GMD_Load(Stream& gmd);
+
+/// Modifies the given GMD to make edition more easier:
+/// - Line breaks are made insignificant.
+/// - Long event sequences <E123><E456> are converted to <JV123>
+String GMD_EscapeEntryJV(StringView input);
 
 #pragma endregion
 
