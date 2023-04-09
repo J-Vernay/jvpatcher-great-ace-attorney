@@ -1,5 +1,27 @@
 #include "Utility.hpp"
 
+#include <cctype>
+
+String ConvertToID(String const& input)
+{
+    String output;
+    output.reserve(input.size());
+
+    // Replace non-alnum chars by hyphen, only one consecutive.
+    char last = '-';
+    for (char c : input)
+    {
+        if (!std::isalnum(c))
+            c = '-';
+        if (c == last && c == '-')
+            continue;
+        output += c;
+        last = c;
+    }
+
+    return output;
+}
+
 Stream::Stream(Path const& path)
 {
     name = path.filename().string();

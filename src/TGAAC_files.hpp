@@ -1,5 +1,5 @@
-#ifndef JV_TGAAC_FILE_ARC_H
-#define JV_TGAAC_FILE_ARC_H
+#ifndef JV_TGAAC_FILES_H
+#define JV_TGAAC_FILES_H
 
 /// This file contains routines to open ARC files.
 /// In this implementation, only the bare minimum is provided
@@ -37,7 +37,7 @@ struct ARC_Archive
 };
 
 /// Throws std::runtime_error on failure.
-ARC_Archive ARC_LoadFromFile(Stream& arc);
+ARC_Archive ARC_Load(Stream& arc);
 
 VecByte ARC_DecompressEntry(ARC_Entry const& entry);
 
@@ -61,7 +61,7 @@ struct GMD_Registry
     std::vector<GMD_Entry> entries;
 };
 
-GMD_Registry GMD_LoadFromFile(Stream& gmd);
+GMD_Registry GMD_Load(Stream& gmd);
 
 #pragma endregion
 

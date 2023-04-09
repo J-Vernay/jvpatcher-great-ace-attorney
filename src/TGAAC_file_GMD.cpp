@@ -29,7 +29,7 @@ struct GMD_FileBuckets
     uint64_t buckets[256];
 };
 
-GMD_Registry GMD_LoadFromFile(Stream& gmd)
+GMD_Registry GMD_Load(Stream& gmd)
 {
     // 1. Parse header
 
@@ -124,8 +124,6 @@ GMD_Registry GMD_LoadFromFile(Stream& gmd)
             entry.key = (char*)label.data();
         }
     }
-
-    fmt::print("Hello, world!\n");
 
     return result;
 }

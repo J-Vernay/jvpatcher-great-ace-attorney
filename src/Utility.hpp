@@ -18,13 +18,20 @@ using String = std::string;
 using VecByte = std::vector<std::byte>;
 using SpanByte = std::span<std::byte>;
 using Path = std::filesystem::path;
+template <typename Key, typename Value>
+using Map = std::unordered_map<Key, Value>;
 
+/// Removes directory separators and whitespaces.
+String ConvertToID(String const& input);
+
+/// Used extensively for errors.
 struct RuntimeError : std::runtime_error
 {
     template <typename S, typename... TArgs>
     explicit RuntimeError(S const& format, TArgs&&... args);
 };
 
+/// Mimics a file, either backed by FILE* or by a memory buffer.
 class Stream
 {
   public:

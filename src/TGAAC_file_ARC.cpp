@@ -27,7 +27,7 @@ struct ARC_FileEntryExtendedName
     int32_t offset;
 };
 
-ARC_Archive ARC_LoadFromFile(Stream& arc)
+ARC_Archive ARC_Load(Stream& arc)
 {
     // 1. Read header
 

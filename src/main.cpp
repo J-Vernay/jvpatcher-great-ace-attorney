@@ -1,30 +1,23 @@
 
-#include "TGAAC_files.hpp"
-#include <algorithm>
-#include <fstream>
-#include <string_view>
+#include "TGAAC_actions.hpp"
+#include "Utility.hpp"
+#include <filesystem>
 
-Path const TGAAC_DIR = "/home/jvernay/.local/share/Steam/steamapps/common/TGAAC";
-Path const ARCHIVE_DIR = TGAAC_DIR / "nativeDX11x64/archive";
+// For debugging purposes
+// Path const TGAAC_DIR = "~/.local/share/Steam/steamapps/common/TGAAC";
+// Path const ARCHIVE_DIR = TGAAC_DIR / "nativeDX11x64/archive";
 
-void ParseGMD(VecByte b);
-
-int main()
+int main(int argc, char** argv)
 {
-    Stream streamARC{ARCHIVE_DIR / "title_select_eng.arc"};
-    ARC_Archive arc = ARC_LoadFromFile(streamARC);
-    for (ARC_Entry& entry : arc.entries)
+    if (argc != 3)
     {
-        if (entry.ext == ARC_ExtensionHash::GMD)
-        {
-            VecByte content = ARC_DecompressEntry(entry);
-            std::string_view s{(char*)content.data(), content.size()};
-
-            std::ofstream{"out.bin", std::ios::binary}.write(
-                (char*)content.data(), content.size());
-
-            Stream gmd{entry.filename, std::move(content)};
-            GMD_LoadFromFile(gmd);
-        }
+        fmt::print("Usage: {} <archive_folder> <extract_folder>\n", argv[0]);
+        return EXIT_FAILURE;
     }
+
+    Path archiveFolder = argv[1];
+    Path extractFolder = argv[2];
+
+    std::filesystem::remove_all(extractFolder);
+    TGAAC_GlobalExtract(archiveFolder, extractFolder);
 }
