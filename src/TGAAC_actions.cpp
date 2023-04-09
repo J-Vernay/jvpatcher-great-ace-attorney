@@ -1,3 +1,6 @@
+// TGAAC_jv_patcher : Extract and modify scripts of The Great Ace Attorney Chronicles.
+// Copyright (C) 2023 Julien Vernay - Available as GNU GPL-3.0-or-later
+
 #include "TGAAC_actions.hpp"
 #include "TGAAC_files.hpp"
 #include <algorithm>

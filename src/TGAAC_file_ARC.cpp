@@ -1,3 +1,6 @@
+// TGAAC_jv_patcher : Extract and modify scripts of The Great Ace Attorney Chronicles.
+// Copyright (C) 2023 Julien Vernay - Available as GNU GPL-3.0-or-later
+
 #include "TGAAC_files.hpp"
 
 #include <zlib.h>
@@ -64,7 +67,7 @@ ARC_Archive ARC_Load(Stream& arc)
         {
             ARC_Entry& entry = result.entries.emplace_back();
             entry.filename = e.fileName;
-            entry.ext = {e.extensionHash};
+            entry.ext = ARC_ExtensionHash{e.extensionHash};
             entry.decompSize = e.decompSize & 0x00FFFFFF;
             entry.content.resize(e.compSize);
             arc.Seek(e.offset, SEEK_SET);
