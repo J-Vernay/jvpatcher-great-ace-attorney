@@ -3,8 +3,6 @@
 
 #include "TGAAC_files.hpp"
 
-#include <zlib.h>
-
 struct ARC_FileHeader
 {
     char magic[4];
@@ -30,26 +28,25 @@ struct ARC_FileEntryExtendedName
     int32_t offset;
 };
 
-ARC_Archive ARC_Load(Stream& arc)
+ARC_Archive ARC_Load(stream_ptr& arc)
 {
     // 1. Read header
 
     ARC_FileHeader header;
-    arc.Seek(0, SEEK_SET);
     arc.Read(std::span{&header, 1});
 
     if (memcmp(header.magic, "ARC\0", 4) != 0)
-        throw RuntimeError("{}: Not starting with 'ARC\0'", arc.Name());
+        throw runtime_error("{}: Not starting with 'ARC\0'", arc.Name());
 
     if (header.version != 7 && header.version != 8)
-        throw RuntimeError("{}: Bad ARC version {}", arc.Name(), header.version);
+        throw runtime_error("{}: Bad ARC version {}", arc.Name(), header.version);
 
     // 2. Determine whether we have ARC_FileEntry or ARC_FileEntryExtendedName
 
     bool hasExtendedNames = [&] {
         ARC_FileEntry firstEntry;
         arc.Read(std::span{&firstEntry, 1});
-        arc.Seek(-sizeof(firstEntry), SEEK_CUR);
+        arc.SeekInput(-sizeof(firstEntry), std::ios::cur);
         return firstEntry.extensionHash == 0 || firstEntry.decompSize == 0 ||
                firstEntry.offset == 0;
     }();
@@ -70,7 +67,7 @@ ARC_Archive ARC_Load(Stream& arc)
             entry.ext = ARC_ExtensionHash{e.extensionHash};
             entry.decompSize = e.decompSize & 0x00FFFFFF;
             entry.content.resize(e.compSize);
-            arc.Seek(e.offset, SEEK_SET);
+            arc.SeekInput(e.offset, std::ios::beg);
             arc.Read(std::span{entry.content});
         }
     };
@@ -83,38 +80,41 @@ ARC_Archive ARC_Load(Stream& arc)
     return result;
 }
 
-VecByte ARC_DecompressEntry(ARC_Entry const& entry)
+#include <zlib.h>
+
+std::string ARC_DecompressEntry(ARC_Entry const& entry)
 {
     if (entry.content.size() == entry.decompSize)
         return entry.content;
 
     uint8_t magic = (uint8_t)entry.content[0];
     if ((magic & 0x0F) != 8 || (magic & 0xF0) > 0x70)
-        throw RuntimeError("Unexpected decompression first byte: {}", magic);
+        throw runtime_error("Unexpected decompression first byte: {}", magic);
 
-    VecByte output(entry.decompSize);
+    std::string output;
+    output.resize(entry.decompSize);
     z_stream strm = {};
-    strm.next_in = (unsigned char*)entry.content.data();
+    strm.next_in = (Bytef*)entry.content.data();
     strm.avail_in = entry.content.size();
-    strm.next_out = (unsigned char*)output.data();
+    strm.next_out = (Bytef*)output.data();
     strm.avail_out = output.size();
 
     int res = inflateInit(&strm);
     if (res != Z_OK)
-        throw RuntimeError("Error with ZLIB inflateInit: {}", res);
+        throw runtime_error("Error with ZLIB inflateInit: {}", res);
 
     res = inflate(&strm, Z_NO_FLUSH);
     if (res != Z_STREAM_END)
-        throw RuntimeError("Error with ZLIB inflate: {}", res);
+        throw runtime_error("Error with ZLIB inflate: {}", res);
 
     if (strm.avail_in != 0 || strm.avail_out != 0)
-        throw RuntimeError(
+        throw runtime_error(
             "Error with decompression, bytes remaining: in={} out={}", strm.avail_in,
             strm.avail_out);
 
     res = inflateEnd(&strm);
     if (res != Z_OK)
-        throw RuntimeError("Error with ZLIB inflatEnd: {}", res);
+        throw runtime_error("Error with ZLIB inflatEnd: {}", res);
 
     return output;
 }

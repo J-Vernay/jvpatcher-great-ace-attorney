@@ -12,8 +12,8 @@
 
 // 'destFolder' must be empty or non-existent.
 
-void TGAAC_ExtractGMD(Stream& gmdStream, Path const& destFolder);
-void TGAAC_ExtractARC(Stream& arcStream, Path const& destFolder);
-void TGAAC_GlobalExtract(Path const& installFolder, Path const& extractFolder);
+void TGAAC_ExtractGMD(stream_ptr& gmdStream, fs::path const& destFolder);
+void TGAAC_ExtractARC(stream_ptr& arcStream, fs::path const& destFolder);
+void TGAAC_GlobalExtract(fs::path const& installFolder, fs::path const& extractFolder);
 
 #endif

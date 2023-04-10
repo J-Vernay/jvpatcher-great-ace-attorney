@@ -10,6 +10,7 @@
 #include <memory>
 #include <span>
 #include <stdexcept>
+#include <streambuf>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -17,53 +18,35 @@
 #include <vector>
 
 #include <fmt/format.h>
+#include <rapidjson/filewritestream.h>
+#include <rapidjson/prettywriter.h>
+#include <rapidjson/rapidjson.h>
+#include <rapidjson/stringbuffer.h>
 
-using String = std::string;
-using StringView = std::string_view;
-using VecByte = std::vector<std::byte>;
-using SpanByte = std::span<std::byte>;
-using Path = std::filesystem::path;
-template <typename Key, typename Value>
-using Map = std::unordered_map<Key, Value>;
+namespace fs = std::filesystem;
 
-/// Removes directory separators and whitespaces.
-String ConvertToID(StringView input);
-
-/// Used extensively for errors.
-struct RuntimeError : std::runtime_error
+class stream_ptr : public std::unique_ptr<std::streambuf>
 {
-    template <typename S, typename... TArgs>
-    explicit RuntimeError(S const& format, TArgs&&... args);
-};
+    std::string m_name;
 
-/// Mimics a file, either backed by FILE* or by a memory buffer.
-class Stream
-{
   public:
-    explicit Stream(Path const& path);
-    explicit Stream(String name, VecByte content);
-    ~Stream() noexcept;
+    stream_ptr(fs::path const& p);
+    stream_ptr(std::string name, std::string bytes);
+    std::string_view Name() const noexcept;
 
-    void Seek(int64_t offset, int whence);
-    int64_t Tell();
+    int64_t SeekInput(int64_t off, std::ios::seekdir);
     template <typename T>
     void Read(std::span<T> out);
-    void ReadBytes(SpanByte out);
-    void ReadCStr(VecByte& out, std::byte delimiter = std::byte{0});
+};
 
-    String const& Name() const noexcept;
+/// Removes directory separators and whitespaces.
+std::string ConvertToID(std::string_view input);
 
-    // No copy, no move
-    Stream(Stream const&) = delete;
-    Stream(Stream&&) = delete;
-    Stream& operator=(Stream const&) = delete;
-    Stream& operator=(Stream&&) = delete;
-
-  private:
-    String name;
-    std::FILE* file = nullptr; ///< If null, use 'content' instead
-    VecByte content;
-    int64_t cursor;
+/// Used extensively for errors.
+struct runtime_error : std::runtime_error
+{
+    template <typename S, typename... TArgs>
+    explicit runtime_error(S const& format, TArgs&&... args);
 };
 
 //
@@ -71,16 +54,17 @@ class Stream
 //
 
 template <typename S, typename... TArgs>
-inline RuntimeError::RuntimeError(S const& format, TArgs&&... args)
-    : runtime_error(fmt::vformat(format, fmt::make_format_args(args...)))
+inline runtime_error::runtime_error(S const& format, TArgs&&... args)
+    : std::runtime_error(fmt::vformat(format, fmt::make_format_args(args...)))
 {
 }
 
 template <typename T>
-inline void Stream::Read(std::span<T> out)
+void stream_ptr::Read(std::span<T> out)
 {
-    static_assert(std::is_trivial_v<T>);
-    ReadBytes(SpanByte{(std::byte*)out.data(), out.size_bytes()});
+    int64_t result = get()->sgetn((char*)out.data(), out.size_bytes());
+    if (result != out.size_bytes())
+        throw runtime_error("Could not read {} bytes in {}", out.size_bytes(), m_name);
 }
 
 #endif

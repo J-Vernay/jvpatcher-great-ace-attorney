@@ -9,31 +9,29 @@
 #include <rapidjson/filewritestream.h>
 #include <rapidjson/prettywriter.h>
 
-namespace fs = std::filesystem;
-
-static void _ensureEmptyFolder(Path const& folder)
+static void _ensureEmptyFolder(fs::path const& folder)
 {
     if (!fs::exists(folder))
         fs::create_directory(folder);
     if (!fs::is_directory(folder))
-        throw RuntimeError("Given patch folder exists and is not a directory!");
+        throw runtime_error("Given patch folder exists and is not a directory!");
 
     for (auto&& p : fs::directory_iterator(folder))
-        throw RuntimeError("Given patch folder is not empty");
+        throw runtime_error("Given patch folder is not empty");
 }
 
-void TGAAC_ExtractGMD(Stream& gmdStream, Path const& destFolder)
+void TGAAC_ExtractGMD(stream_ptr& gmdStream, fs::path const& destFolder)
 {
     // 1. Read and determine what is needed to be done.
 
     GMD_Registry gmd = GMD_Load(gmdStream);
-    Map<String, GMD_Entry const&> mapNameEntry;
+    std::unordered_map<std::string, GMD_Entry const&> mapNameEntry;
 
     for (GMD_Entry const& entry : gmd.entries)
     {
-        String name = ConvertToID(entry.key) + ".jv.xml";
+        std::string name = ConvertToID(entry.key) + ".jv.xml";
         if (mapNameEntry.contains(name))
-            throw RuntimeError("Duplicated name '{}' in {}", name, gmdStream.Name());
+            throw runtime_error("Duplicated name '{}'", name);
         mapNameEntry.insert({name, entry});
     }
 
@@ -48,12 +46,12 @@ void TGAAC_ExtractGMD(Stream& gmdStream, Path const& destFolder)
 
     for (auto& [name, entry] : mapNameEntry)
     {
-        Path dest = destFolder / name;
+        fs::path dest = destFolder / name;
         FILE* f = fopen(dest.c_str(), "wb");
         if (f == nullptr)
-            throw RuntimeError("Could not open file {}", dest.native());
+            throw runtime_error("Could not open file {}", dest.native());
 
-        String value = GMD_EscapeEntryJV(entry.value);
+        std::string value = GMD_EscapeEntryJV(entry.value);
         fwrite(value.data(), 1, value.size(), f);
         fclose(f);
     }
@@ -63,7 +61,7 @@ void TGAAC_ExtractGMD(Stream& gmdStream, Path const& destFolder)
     using namespace rapidjson;
     FILE* f = fopen((destFolder / "__META__.json").c_str(), "wb");
     if (f == nullptr)
-        throw RuntimeError("Could not open file META.json");
+        throw runtime_error("Could not open file META.json");
 
     char writeBuffer[65536];
     FileWriteStream os{f, writeBuffer, sizeof(writeBuffer)};
@@ -95,20 +93,20 @@ void TGAAC_ExtractGMD(Stream& gmdStream, Path const& destFolder)
     fclose(f);
 }
 
-void TGAAC_ExtractARC(Stream& arcStream, Path const& destFolder)
+void TGAAC_ExtractARC(stream_ptr& arcStream, fs::path const& destFolder)
 {
     // 1. Read and determine what is needed to be done.
 
     ARC_Archive arc = ARC_Load(arcStream);
-    Map<String, ARC_Entry const&> mapNameEntry;
+    std::unordered_map<std::string, ARC_Entry const&> mapNameEntry;
 
     for (ARC_Entry const& entry : arc.entries)
     {
         if (entry.ext == ARC_ExtensionHash::GMD)
         {
-            String name = "gmd__" + ConvertToID(entry.filename);
+            std::string name = "gmd__" + ConvertToID(entry.filename);
             if (mapNameEntry.contains(name))
-                throw RuntimeError("Duplicated name '{}' in {}", name, arcStream.Name());
+                throw runtime_error("Duplicated name '{}' in {}", name);
             mapNameEntry.insert({name, entry});
         }
     }
@@ -124,8 +122,8 @@ void TGAAC_ExtractARC(Stream& arcStream, Path const& destFolder)
 
     for (auto& [name, entry] : mapNameEntry)
     {
-        VecByte gmd = ARC_DecompressEntry(entry);
-        Stream gmdStream{name, gmd};
+        std::string s = ARC_DecompressEntry(entry);
+        stream_ptr gmdStream{name, s};
         TGAAC_ExtractGMD(gmdStream, destFolder / name);
     }
 
@@ -134,7 +132,7 @@ void TGAAC_ExtractARC(Stream& arcStream, Path const& destFolder)
     using namespace rapidjson;
     FILE* f = fopen((destFolder / "__META__.json").c_str(), "wb");
     if (f == nullptr)
-        throw RuntimeError("Could not open file META.json");
+        throw runtime_error("Could not open file META.json");
 
     char writeBuffer[65536];
     FileWriteStream os{f, writeBuffer, sizeof(writeBuffer)};
@@ -162,18 +160,18 @@ void TGAAC_ExtractARC(Stream& arcStream, Path const& destFolder)
     fclose(f);
 }
 
-void TGAAC_GlobalExtract(Path const& installFolder, Path const& extractFolder)
+void TGAAC_GlobalExtract(fs::path const& installFolder, fs::path const& extractFolder)
 {
     _ensureEmptyFolder(extractFolder);
 
-    Map<String, Path> mapNamePath;
+    std::unordered_map<std::string, fs::path> mapNamePath;
 
     mapNamePath.reserve(100);
-    for (Path const& p : fs::recursive_directory_iterator(installFolder))
+    for (fs::path const& p : fs::recursive_directory_iterator(installFolder))
     {
         if (p.extension() != ".arc")
             continue;
-        Path arcPath = fs::relative(p, installFolder);
+        fs::path arcPath = fs::relative(p, installFolder);
         mapNamePath.emplace(ConvertToID(arcPath.string()), arcPath);
     }
 
@@ -182,14 +180,14 @@ void TGAAC_GlobalExtract(Path const& installFolder, Path const& extractFolder)
     for (auto& [name, arcPath] : mapNamePath)
     {
         fmt::print("Extracting {}...\n", name);
-        Stream arcStream{installFolder / arcPath};
+        stream_ptr arcStream{installFolder / arcPath};
         TGAAC_ExtractARC(arcStream, extractFolder / name);
     }
 
     using namespace rapidjson;
     FILE* f = fopen((extractFolder / "__META__.json").c_str(), "wb");
     if (f == nullptr)
-        throw RuntimeError("Could not open file META.json");
+        throw runtime_error("Could not open file META.json");
 
     char writeBuffer[65536];
     FileWriteStream os{f, writeBuffer, sizeof(writeBuffer)};

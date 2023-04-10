@@ -34,73 +34,74 @@ struct GMD_FileBuckets
     uint64_t buckets[256];
 };
 
-GMD_Registry GMD_Load(Stream& gmd)
+GMD_Registry GMD_Load(stream_ptr& gmd)
 {
     // 1. Parse header
-
     GMD_FileHeader header;
-    gmd.Seek(0, SEEK_END);
-    int64_t fileSize = gmd.Tell();
-    gmd.Seek(0, SEEK_SET);
+    int64_t fileSize = gmd.SeekInput(0, std::ios::end);
+    gmd.SeekInput(0, std::ios::beg);
     gmd.Read(std::span{&header, 1});
 
     if (memcmp(header.magic, "GMD\0", 0) != 0)
-        throw RuntimeError("{}: Not starting with 'GMD\0'", gmd.Name());
+        throw runtime_error("{}: Not starting with 'GMD\0'", gmd.Name());
 
     if (header.version != 0x010302)
-        throw RuntimeError("{}: Bad GMD version {:#x}", gmd.Name(), header.version);
+        throw runtime_error("{}: Bad GMD version {:#x}", gmd.Name(), header.version);
 
     // 2. Parse name
 
-    VecByte name;
-    gmd.ReadCStr(name);
+    std::string name;
+    for (char c; (c = gmd->sbumpc()) != '\0';)
+        name.push_back(c);
 
     // 3. Parse label entries
-
     std::vector<GMD_FileLabelEntry> labelEntries(header.labelCount);
     gmd.Read(std::span{labelEntries});
 
     // 4. Compute sizes
 
-    int64_t prefixSize = gmd.Tell();
+    int64_t prefixSize = gmd.SeekInput(0, std::ios::cur);
     int64_t bucketsSize = header.labelCount > 0 ? sizeof(GMD_FileBuckets) : 0;
     int64_t textSize = header.labelSize + header.sectionSize;
     int64_t expectedFileSize = prefixSize + bucketsSize + textSize;
     if (expectedFileSize != fileSize)
-        throw RuntimeError(
+        throw runtime_error(
             "{}: Bad file size {} (expected {})", gmd.Name(), fileSize, expectedFileSize);
 
     // 5. Skip bucket (only necessary for fast random access)
     if (bucketsSize)
-        gmd.Seek(sizeof(GMD_FileBuckets), SEEK_CUR);
+        gmd.SeekInput(sizeof(GMD_FileBuckets), std::ios::cur);
 
     // 6. Read all labels, store their labelOffset
 
-    int64_t labelBegin = gmd.Tell();
+    int64_t labelBegin = gmd.SeekInput(0, std::ios::cur);
     int64_t labelEnd = labelBegin + header.labelSize;
 
-    std::unordered_map<int64_t, VecByte> labels;
+    std::unordered_map<int64_t, std::string> labels;
     while (true)
     {
-        int64_t pos = gmd.Tell();
+        int64_t pos = gmd.SeekInput(0, std::ios::cur);
         if (pos >= labelEnd)
             break;
-        gmd.ReadCStr(labels[pos - labelBegin]);
+        std::string& name = labels[pos - labelBegin];
+        for (char c; (c = gmd->sbumpc()) != '\0';)
+            name.push_back(c);
     }
-    if (gmd.Tell() != labelEnd)
-        throw RuntimeError("{}: labelSize does not match", gmd.Name());
+    if (gmd.SeekInput(0, std::ios::cur) != labelEnd)
+        throw runtime_error("{}: labelSize does not match", gmd.Name());
 
     // 7. Read all sections
 
-    std::vector<VecByte> sections;
+    std::vector<std::string> sections;
     sections.reserve(header.sectionCount);
     for (uint32_t i = 0; i < header.sectionCount; ++i)
     {
-        VecByte& section = sections.emplace_back();
-        gmd.ReadCStr(section);
+        std::string& section = sections.emplace_back();
+        for (char c; (c = gmd->sbumpc()) != '\0';)
+            section.push_back(c);
     }
-    if (gmd.Tell() != fileSize)
-        throw RuntimeError("{}: sectionSize does not match", gmd.Name());
+    if (gmd.SeekInput(0, std::ios::cur) != fileSize)
+        throw runtime_error("{}: sectionSize does not match", gmd.Name());
 
     // 8. Convert to output GMD_Registry
 
@@ -112,7 +113,7 @@ GMD_Registry GMD_Load(Stream& gmd)
     for (size_t sectionID = 0; sectionID < sections.size(); ++sectionID)
     {
         GMD_Entry& entry = result.entries.emplace_back();
-        VecByte& section = sections[sectionID];
+        std::string& section = sections[sectionID];
         entry.value = (char*)section.data();
 
         auto it = std::ranges::find_if(labelEntries, [&](GMD_FileLabelEntry const& e) {
@@ -121,7 +122,7 @@ GMD_Registry GMD_Load(Stream& gmd)
 
         if (it != labelEntries.end())
         {
-            VecByte const& label = labels.at(it->labelOffset);
+            std::string const& label = labels.at(it->labelOffset);
 
             entry.hash1 = it->hash1;
             entry.hash2 = it->hash2;
@@ -132,16 +133,16 @@ GMD_Registry GMD_Load(Stream& gmd)
     return result;
 }
 
-String GMD_EscapeEntryJV(StringView input)
+std::string GMD_EscapeEntryJV(std::string_view input)
 {
-    String result;
+    std::string result;
     result.reserve(input.size() * 1.5);
 
     // An abbreviation is <JV123>
-    std::vector<std::pair<String, StringView>> abbrText;
+    std::vector<std::pair<std::string, std::string_view>> abbrText;
 
-    constexpr StringView SPECIAL = "\r\n<";
-    constexpr StringView PAGE = "<PAGE>";
+    constexpr std::string_view SPECIAL = "\r\n<";
+    constexpr std::string_view PAGE = "<PAGE>";
 
     while (input.size() > 0)
     {
@@ -163,20 +164,20 @@ String GMD_EscapeEntryJV(StringView input)
         else
         {
             size_t specialCount = 0;
-            for (StringView next = input;
+            for (std::string_view next = input;
                  next.starts_with('<') && !next.starts_with(PAGE);)
             {
                 size_t closingPos = next.find('>');
                 if (closingPos == input.npos)
-                    throw RuntimeError("Unclosed angle brackets");
+                    throw runtime_error("Unclosed angle brackets");
                 specialCount += closingPos + 1;
                 next.remove_prefix(closingPos + 1);
             }
             if (specialCount > 0)
             {
-                StringView special = input.substr(0, specialCount);
+                std::string_view special = input.substr(0, specialCount);
                 input.remove_prefix(specialCount);
-                String abbr = fmt::format("<JV{}/>", abbrText.size());
+                std::string abbr = fmt::format("<JV{}/>", abbrText.size());
                 result += abbr;
                 abbrText.emplace_back(std::move(abbr), special);
             }
@@ -191,7 +192,7 @@ String GMD_EscapeEntryJV(StringView input)
     }
 
     /// Used to know when a file has been modified.
-    int64_t originalHash = std::hash<String>{}(result);
+    int64_t originalHash = std::hash<std::string>{}(result);
 
     using namespace rapidjson;
     StringBuffer buffer;

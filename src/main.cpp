@@ -6,8 +6,8 @@
 #include <filesystem>
 
 // For debugging purposes
-// Path const TGAAC_DIR = "~/.local/share/Steam/steamapps/common/TGAAC";
-// Path const ARCHIVE_DIR = TGAAC_DIR / "nativeDX11x64/archive";
+// fs::path const TGAAC_DIR = "~/.local/share/Steam/steamapps/common/TGAAC";
+// fs::path const ARCHIVE_DIR = TGAAC_DIR / "nativeDX11x64/archive";
 
 char const* SHORT_LICENSE = R"(
     TGAAC_jv_patcher  Copyright (C) 2023  Julien Vernay
@@ -52,12 +52,12 @@ int main(int argc, char** argv)
         return EXIT_FAILURE;
     }
 
-    Path archiveFolder = argv[1];
-    Path extractFolder = argv[2];
+    fs::path archiveFolder = argv[1];
+    fs::path extractFolder = argv[2];
 
     fmt::print("Decompressing {} into {}", archiveFolder.c_str(), extractFolder.c_str());
 
-    std::filesystem::remove_all(extractFolder);
+    fs::remove_all(extractFolder);
     TGAAC_GlobalExtract(archiveFolder, extractFolder);
 
     return EXIT_SUCCESS;

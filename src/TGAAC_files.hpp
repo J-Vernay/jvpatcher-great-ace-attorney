@@ -27,9 +27,9 @@ enum class ARC_ExtensionHash : uint32_t
 
 struct ARC_Entry
 {
-    String filename;       ///< Entry name, without extension
+    std::string filename;  ///< Entry name, without extension
     ARC_ExtensionHash ext; ///< Number representing file type
-    VecByte content;       ///< Byte content of the file, may be compressed.
+    std::string content;   ///< Byte content of the file, may be compressed.
     uint32_t decompSize;   ///< The content size if decompressed.
 };
 
@@ -40,9 +40,9 @@ struct ARC_Archive
 };
 
 /// Throws std::runtime_error on failure.
-ARC_Archive ARC_Load(Stream& arc);
+ARC_Archive ARC_Load(stream_ptr& arc);
 
-VecByte ARC_DecompressEntry(ARC_Entry const& entry);
+std::string ARC_DecompressEntry(ARC_Entry const& entry);
 
 #pragma endregion
 
@@ -50,8 +50,8 @@ VecByte ARC_DecompressEntry(ARC_Entry const& entry);
 
 struct GMD_Entry
 {
-    String key;
-    String value;
+    std::string key;
+    std::string value;
     uint32_t hash1{}; ///< Some hash based on 'key'
     uint32_t hash2{}; ///< Some other hash based on 'key'
 };
@@ -60,16 +60,16 @@ struct GMD_Registry
 {
     uint32_t version;
     uint32_t language;
-    String name;
+    std::string name;
     std::vector<GMD_Entry> entries;
 };
 
-GMD_Registry GMD_Load(Stream& gmd);
+GMD_Registry GMD_Load(stream_ptr& gmd);
 
 /// Modifies the given GMD to make edition more easier:
 /// - Line breaks are made insignificant.
 /// - Long event sequences <E123><E456> are converted to <JV123>
-String GMD_EscapeEntryJV(StringView input);
+std::string GMD_EscapeEntryJV(std::string_view input);
 
 #pragma endregion
 
