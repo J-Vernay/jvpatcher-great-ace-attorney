@@ -2,7 +2,8 @@
 // Copyright (C) 2023 Julien Vernay - Available as GNU GPL-3.0-or-later
 
 #include "TGAAC_actions.hpp"
-#include "TGAAC_files.hpp"
+#include "TGAAC_file_ARC.hpp"
+#include "TGAAC_file_GMD.hpp"
 #include <algorithm>
 #include <filesystem>
 #include <rapidjson/document.h>
