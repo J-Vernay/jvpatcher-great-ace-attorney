@@ -4,6 +4,7 @@ project(TGAAC_jv_patcher)
 
 find_package(ZLIB)
 add_subdirectory(external/fmtlib)
+add_subdirectory(external/libarchive)
 
 add_library(rapidjson INTERFACE)
 target_include_directories(rapidjson INTERFACE external/rapidjson/include)
