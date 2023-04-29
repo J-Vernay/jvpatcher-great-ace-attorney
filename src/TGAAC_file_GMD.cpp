@@ -14,7 +14,7 @@ struct GMD_FileHeader
     char magic[4];
     uint32_t version;
     uint32_t language;
-    uint32_t zero[2];
+    uint32_t padding[2];
     uint32_t labelCount;
     uint32_t sectionCount;
     uint32_t labelSize;
@@ -39,6 +39,8 @@ struct GMD_FileBuckets
 
 void GMD_Registry::Load(stream_ptr& gmd)
 {
+    *this = {};
+
     // 1. Parse header
     GMD_FileHeader header;
     int64_t fileSize = gmd.SeekInput(0, std::ios::end);
@@ -46,25 +48,24 @@ void GMD_Registry::Load(stream_ptr& gmd)
     gmd.Read(std::span{&header, 1});
 
     if (memcmp(header.magic, "GMD\0", 0) != 0)
-        throw runtime_error("{}: Not starting with 'GMD\0'", gmd.Name());
+        gmd.Error("not starting with 'GMD\0'");
 
     if (header.version != 0x010302)
-        throw runtime_error("{}: Bad GMD version {:#x}", gmd.Name(), header.version);
+        gmd.Error("bad GMD version {:#x}", header.version);
 
     if (header.labelCount != header.sectionCount)
-        throw runtime_error(
-            "{}: GMD Unsupported labelCount != sectionCount ({} != {})", gmd.Name(),
-            header.labelCount, header.sectionCount);
+        gmd.Error("unsupported labelCount != sectionCount ({} != {})", header.labelCount,
+                  header.sectionCount);
 
     // 2. Parse name
 
-    std::string name = gmd.ReadCStr();
+    name = gmd.ReadCStr();
     if (name.size() != header.nameSize)
-        throw runtime_error(
-            "{}: GMD nameSize mismatch (in header {}, found {})", gmd.Name(),
-            header.nameSize, name.size());
+        gmd.Error("ameSize mismatch (in header {}, found {})", header.nameSize,
+                  name.size());
 
     // 3. Parse label entries
+
     std::vector<GMD_FileLabelEntry> labelEntries(header.labelCount);
     gmd.Read(std::span{labelEntries});
 
@@ -75,12 +76,13 @@ void GMD_Registry::Load(stream_ptr& gmd)
     int64_t textSize = header.labelSize + header.sectionSize;
     int64_t expectedFileSize = prefixSize + bucketsSize + textSize;
     if (expectedFileSize != fileSize)
-        throw runtime_error(
-            "{}: Bad file size {} (expected {})", gmd.Name(), fileSize, expectedFileSize);
+        gmd.Error("bad file size {} (expected {})", fileSize, expectedFileSize);
 
     // 5. Skip bucket (only necessary for fast random access)
+
+    GMD_FileBuckets gmd_buckets{};
     if (bucketsSize)
-        gmd.SeekInput(sizeof(GMD_FileBuckets), std::ios::cur);
+        gmd.Read(std::span{&gmd_buckets, 1});
 
     // 6. Read all labels, store their labelOffset
 
@@ -93,10 +95,15 @@ void GMD_Registry::Load(stream_ptr& gmd)
         int64_t pos = gmd.SeekInput(0, std::ios::cur);
         if (pos >= labelEnd)
             break;
-        labels[pos - labelBegin] = gmd.ReadCStr();
+        int64_t offset = pos - labelBegin;
+        std::string value = gmd.ReadCStr();
+        labels[pos - labelBegin] = value;
     }
-    if (gmd.SeekInput(0, std::ios::cur) != labelEnd)
-        throw runtime_error("{}: labelSize does not match", gmd.Name());
+    int64_t pos = gmd.SeekInput(0, std::ios::cur);
+    if (pos != labelEnd)
+        gmd.Error("labelEnd does not match: {} != {}", pos, labelEnd);
+    if (labels.size() != header.labelCount)
+        gmd.Error("labelSize does not match: {} != {}", labels.size(), header.labelCount);
 
     // 7. Read all sections
 
@@ -107,7 +114,7 @@ void GMD_Registry::Load(stream_ptr& gmd)
         sections.emplace_back(gmd.ReadCStr());
     }
     if (gmd.SeekInput(0, std::ios::cur) != fileSize)
-        throw runtime_error("{}: sectionSize does not match", gmd.Name());
+        gmd.Error("sectionSize does not match");
 
     // 8. Convert to output GMD_Registry
 
@@ -124,15 +131,20 @@ void GMD_Registry::Load(stream_ptr& gmd)
         auto it = std::ranges::find_if(labelEntries, [&](GMD_FileLabelEntry const& e) {
             return e.sectionID == sectionID;
         });
+        if (it == labelEntries.end())
+            gmd.Error("could not find a label using sectionID {}", sectionID);
 
-        if (it != labelEntries.end())
-        {
-            std::string const& label = labels.at(it->labelOffset);
+        if (!labels.contains(it->labelOffset))
+            gmd.Error("Unknown label at offset {}", it->labelOffset);
+        entry.key = std::move(labels.at(it->labelOffset));
 
-            entry.hash1 = it->hash1;
-            entry.hash2 = it->hash2;
-            entry.key = (char*)label.data();
-        }
+        uint32_t hash0 = ~crc32(0, entry.key.data(), entry.key.size());
+        uint32_t hash1 = ~crc32(~hash0, entry.key.data(), entry.key.size());
+        uint32_t hash2 = ~crc32(~hash1, entry.key.data(), entry.key.size());
+        if (hash1 != it->hash1)
+            gmd.Error("hash1 mismatch: {} != {}", hash1, it->hash1);
+        if (hash2 != it->hash2)
+            gmd.Error("hash2 mismatch: {} != {}", hash2, it->hash2);
     }
 }
 
@@ -150,46 +162,53 @@ void GMD_Registry::Save(stream_ptr& out) const
     gmd_header.sectionSize = 0; //< to be filled in the entries loop
     gmd_header.nameSize = name.size();
 
-    // Entries
+    // Entries and BucketList
 
     int64_t offset = 0;
-    offset += sizeof(GMD_FileHeader);
-    offset += name.size() + 1;
-    offset += entries.size() * sizeof(GMD_Entry);
-    offset += sizeof(GMD_FileBuckets);
+    //offset += sizeof(GMD_FileHeader);
+    //offset += name.size() + 1;
+    //offset += entries.size() * sizeof(GMD_Entry);
+    //offset += sizeof(GMD_FileBuckets);
 
     std::vector<GMD_FileLabelEntry> gmd_labelEntries;
     gmd_labelEntries.reserve(entries.size());
-    for (int i = 0; i < entries.size(); ++i)
+
+    GMD_FileBuckets gmd_buckets{};
+
+    for (size_t i = 0; i < entries.size(); ++i)
     {
         GMD_Entry const& entry = entries[i];
         GMD_FileLabelEntry& fileEntry = gmd_labelEntries.emplace_back();
 
+        uint32_t hash0 = ~crc32(0, entry.key.data(), entry.key.size());
+        uint32_t hash1 = ~crc32(~hash0, entry.key.data(), entry.key.size());
+        uint32_t hash2 = ~crc32(~hash1, entry.key.data(), entry.key.size());
+        uint64_t& bucket = gmd_buckets.buckets[hash0 & 0xFF];
+
         fileEntry.sectionID = i;
-        fileEntry.hash1 = entry.hash1;
-        fileEntry.hash2 = entry.hash2;
-        fileEntry.zeroPadding = 0;
+        fileEntry.hash1 = hash1;
+        fileEntry.hash2 = hash2;
+        fileEntry.zeroPadding = 0xCDCDCDCD;
         fileEntry.labelOffset = offset;
-        fileEntry.listLink = 0;
+        fileEntry.listLink = std::exchange(bucket, i > 0 ? i : -1);
 
         gmd_header.labelSize += entry.key.size() + 1;
         gmd_header.sectionSize += entry.value.size() + 1;
         offset += entry.key.size() + 1;
     }
 
-    // Bucket list (hashmap with linked list buckets)
-
-    GMD_FileBuckets gmd_buckets;
-
     out.Write(std::span{&gmd_header, 1});
     out.Write(std::span{name.data(), name.size() + 1});
+    out.Write(std::span{gmd_labelEntries});
+    out.Write(std::span{&gmd_buckets, 1});
 
-    // header
-    // name
-    // entries
-    // bucketlist
-    // labels
-    // text sections
+    for (GMD_Entry const& entry : entries)
+        out.Write(std::span{entry.key.data(), entry.key.size() + 1});
+
+    for (GMD_Entry const& entry : entries)
+        out.Write(std::span{entry.value.data(), entry.value.size() + 1});
+
+    out.Sync();
 }
 
 std::string GMD_EscapeEntryJV(std::string_view input)

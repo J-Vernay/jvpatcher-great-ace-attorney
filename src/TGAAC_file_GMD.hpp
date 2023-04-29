@@ -10,8 +10,6 @@ struct GMD_Entry
 {
     std::string key;
     std::string value;
-    uint32_t hash1{}; ///< Some hash based on 'key'
-    uint32_t hash2{}; ///< Some other hash based on 'key'
 };
 
 struct GMD_Registry

@@ -84,10 +84,6 @@ void TGAAC_ExtractGMD(stream_ptr& gmdStream, fs::path const& destFolder)
         json.StartObject();
         json.Key("key");
         json.String(entry.key.c_str());
-        json.Key("hash1");
-        json.Int64(entry.hash1);
-        json.Key("hash2");
-        json.Int64(entry.hash2);
         json.EndObject();
     }
     json.EndObject();

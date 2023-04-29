@@ -27,10 +27,10 @@ std::string ConvertToID(std::string_view input)
     return output;
 }
 
-stream_ptr::stream_ptr(fs::path const& p)
+stream_ptr::stream_ptr(fs::path const& p, std::ios::openmode mode)
     : unique_ptr{make_unique<filebuf>()}, m_name{p.filename()}
 {
-    dynamic_cast<filebuf*>(get())->open(p, ios::in | ios::out | ios::binary);
+    dynamic_cast<filebuf*>(get())->open(p, mode | ios::binary);
 }
 
 stream_ptr::stream_ptr(std::string name, std::string bytes)
@@ -42,9 +42,15 @@ int64_t stream_ptr::SeekInput(int64_t off, std::ios::seekdir seekdir)
 {
     return get()->pubseekoff(off, seekdir, std::ios::in);
 }
+
 std::string_view stream_ptr::Name() const noexcept
 {
     return m_name;
+}
+
+void stream_ptr::Sync()
+{
+    get()->pubsync();
 }
 
 std::string stream_ptr::ReadCStr()

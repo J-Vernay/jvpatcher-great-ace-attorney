@@ -36,10 +36,10 @@ void ARC_Archive::Load(stream_ptr& arc)
     arc.Read(std::span{&header, 1});
 
     if (memcmp(header.magic, "ARC\0", 4) != 0)
-        throw runtime_error("{}: Not starting with 'ARC\0'", arc.Name());
+        arc.Error("not starting with 'ARC\0'");
 
     if (header.version != 7 && header.version != 8)
-        throw runtime_error("{}: Bad ARC version {}", arc.Name(), header.version);
+        arc.Error("bad ARC version {}", header.version);
 
     // 2. Determine whether we have ARC_FileEntry or ARC_FileEntryExtendedName
 
@@ -105,9 +105,8 @@ std::string ARC_Entry::Decompress() const
         throw runtime_error("Error with ZLIB inflate: {}", res);
 
     if (strm.avail_in != 0 || strm.avail_out != 0)
-        throw runtime_error(
-            "Error with decompression, bytes remaining: in={} out={}", strm.avail_in,
-            strm.avail_out);
+        throw runtime_error("Error with decompression, bytes remaining: in={} out={}",
+                            strm.avail_in, strm.avail_out);
 
     res = inflateEnd(&strm);
     if (res != Z_OK)
