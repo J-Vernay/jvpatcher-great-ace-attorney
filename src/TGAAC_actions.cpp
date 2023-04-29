@@ -25,7 +25,8 @@ void TGAAC_ExtractGMD(stream_ptr& gmdStream, fs::path const& destFolder)
 {
     // 1. Read and determine what is needed to be done.
 
-    GMD_Registry gmd = GMD_Load(gmdStream);
+    GMD_Registry gmd;
+    gmd.Load(gmdStream);
     std::unordered_map<std::string, GMD_Entry const&> mapNameEntry;
 
     for (GMD_Entry const& entry : gmd.entries)
@@ -52,8 +53,8 @@ void TGAAC_ExtractGMD(stream_ptr& gmdStream, fs::path const& destFolder)
         if (f == nullptr)
             throw runtime_error("Could not open file {}", dest.native());
 
-        std::string value = GMD_EscapeEntryJV(entry.value);
-        fwrite(value.data(), 1, value.size(), f);
+        //std::string value = GMD_EscapeEntryJV(entry.value);
+        fwrite(entry.value.data(), 1, entry.value.size(), f);
         fclose(f);
     }
 
@@ -98,7 +99,8 @@ void TGAAC_ExtractARC(stream_ptr& arcStream, fs::path const& destFolder)
 {
     // 1. Read and determine what is needed to be done.
 
-    ARC_Archive arc = ARC_Load(arcStream);
+    ARC_Archive arc;
+    arc.Load(arcStream);
     std::unordered_map<std::string, ARC_Entry const&> mapNameEntry;
 
     for (ARC_Entry const& entry : arc.entries)
@@ -121,9 +123,9 @@ void TGAAC_ExtractARC(stream_ptr& arcStream, fs::path const& destFolder)
 
     // 3. Do actual work
 
-    for (auto& [name, entry] : mapNameEntry)
+    for (auto const& [name, entry] : mapNameEntry)
     {
-        std::string s = ARC_DecompressEntry(entry);
+        std::string s = entry.Decompress();
         stream_ptr gmdStream{name, s};
         TGAAC_ExtractGMD(gmdStream, destFolder / name);
     }

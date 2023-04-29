@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.21)
 project(TGAAC_jv_patcher)
 
 find_package(ZLIB)
-add_subdirectory(external/libfmt)
+add_subdirectory(external/fmtlib)
 
 add_library(rapidjson INTERFACE)
 target_include_directories(rapidjson INTERFACE external/rapidjson/include)

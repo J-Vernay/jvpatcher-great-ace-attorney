@@ -20,13 +20,19 @@ struct GMD_Registry
     uint32_t language;
     std::string name;
     std::vector<GMD_Entry> entries;
-};
 
-GMD_Registry GMD_Load(stream_ptr& gmd);
+    void Load(stream_ptr& in);
+    void Save(stream_ptr& out) const;
+    void ReadFiles(fs::path const& inFolder);
+    void WriteFiles(fs::path const& outFolder) const;
+};
 
 /// Modifies the given GMD to make edition more easier:
 /// - Line breaks are made insignificant.
 /// - Long event sequences <E123><E456> are converted to <JV123>
 std::string GMD_EscapeEntryJV(std::string_view input);
+
+/// Reverts the operation of GMD_EscapeEntryJV
+std::string GMD_UnescapeEntryJV(std::string_view input);
 
 #endif

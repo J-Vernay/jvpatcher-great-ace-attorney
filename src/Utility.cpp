@@ -46,3 +46,15 @@ std::string_view stream_ptr::Name() const noexcept
 {
     return m_name;
 }
+
+std::string stream_ptr::ReadCStr()
+{
+    std::string str;
+    while (true)
+    {
+        char c = get()->sbumpc();
+        if (c == '\0' || c == std::streambuf::traits_type::eof())
+            return str;
+        str.push_back(c);
+    }
+}

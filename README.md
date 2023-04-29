@@ -17,3 +17,18 @@ With:
   For instance: `~/.local/share/Steam/steamapps/common/TGAAC/nativeDX11x64/archive`
 - `extract_folder` is the destination of all extracted files.
 
+
+## Credits / Attributions
+
+This work could not have been done without the preliminary
+retro-engineering work for Kuriimu 1 & 2, especially:
+- ARC: https://github.com/FanTranslatorsInternational/Kuriimu2/tree/dev/plugins/Capcom/plugin_mt_framework/Archives
+- GMD: https://github.com/IcySon55/Kuriimu/tree/master/src/text/text_gmd
+
+And without the following free (as in freedom) libraries:
+- fmtlib : https://github.com/fmtlib/fmt  
+  Under MIT license:  
+  Copyright (c) 2012 - present, Victor Zverovich and {fmt} contributors
+- rapidjson : https://rapidjson.org/  
+  Under MIT license:
+  Copyright (C) 2015 THL A29 Limited, a Tencent company, and Milo Yip.

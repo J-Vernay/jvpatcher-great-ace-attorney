@@ -28,7 +28,7 @@ struct ARC_FileEntryExtendedName
     int32_t offset;
 };
 
-ARC_Archive ARC_Load(stream_ptr& arc)
+void ARC_Archive::Load(stream_ptr& arc)
 {
     // 1. Read header
 
@@ -53,16 +53,15 @@ ARC_Archive ARC_Load(stream_ptr& arc)
 
     // 3. Parse array of entries
 
-    ARC_Archive result;
-    result.version = header.version;
-    result.entries.reserve(header.entryCount);
+    version = header.version;
+    entries.reserve(header.entryCount);
 
     auto funcReadEntries = [&]<typename TFileEntry>() {
-        std::vector<TFileEntry> entries(header.entryCount);
-        arc.Read(std::span{entries});
-        for (TFileEntry& e : entries)
+        std::vector<TFileEntry> fileEntries(header.entryCount);
+        arc.Read(std::span{fileEntries});
+        for (TFileEntry& e : fileEntries)
         {
-            ARC_Entry& entry = result.entries.emplace_back();
+            ARC_Entry& entry = entries.emplace_back();
             entry.filename = e.fileName;
             entry.ext = ARC_ExtensionHash{e.extensionHash};
             entry.decompSize = e.decompSize & 0x00FFFFFF;
@@ -76,26 +75,24 @@ ARC_Archive ARC_Load(stream_ptr& arc)
         funcReadEntries.operator()<ARC_FileEntryExtendedName>();
     else
         funcReadEntries.operator()<ARC_FileEntry>();
-
-    return result;
 }
 
 #include <zlib.h>
 
-std::string ARC_DecompressEntry(ARC_Entry const& entry)
+std::string ARC_Entry::Decompress() const
 {
-    if (entry.content.size() == entry.decompSize)
-        return entry.content;
+    if (content.size() == decompSize)
+        return content;
 
-    uint8_t magic = (uint8_t)entry.content[0];
+    uint8_t magic = (uint8_t)content[0];
     if ((magic & 0x0F) != 8 || (magic & 0xF0) > 0x70)
         throw runtime_error("Unexpected decompression first byte: {}", magic);
 
     std::string output;
-    output.resize(entry.decompSize);
+    output.resize(decompSize);
     z_stream strm = {};
-    strm.next_in = (Bytef*)entry.content.data();
-    strm.avail_in = entry.content.size();
+    strm.next_in = (Bytef*)content.data();
+    strm.avail_in = content.size();
     strm.next_out = (Bytef*)output.data();
     strm.avail_out = output.size();
 

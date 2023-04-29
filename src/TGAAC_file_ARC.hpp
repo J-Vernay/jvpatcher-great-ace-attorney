@@ -17,17 +17,19 @@ struct ARC_Entry
     ARC_ExtensionHash ext; ///< Number representing file type
     std::string content;   ///< Byte content of the file, may be compressed.
     uint32_t decompSize;   ///< The content size if decompressed.
+
+    std::string Decompress() const;
 };
 
 struct ARC_Archive
 {
     uint16_t version;
     std::vector<ARC_Entry> entries;
+
+    void Load(stream_ptr& in);
+    void Save(stream_ptr& out) const;
+    void ReadFiles(fs::path const& inFolder);
+    void WriteFiles(fs::path const& outFolder) const;
 };
-
-/// Throws std::runtime_error on failure.
-ARC_Archive ARC_Load(stream_ptr& arc);
-
-std::string ARC_DecompressEntry(ARC_Entry const& entry);
 
 #endif
