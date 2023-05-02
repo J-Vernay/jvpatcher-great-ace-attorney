@@ -120,6 +120,7 @@ void GMD_Registry::Load(stream_ptr& gmd)
 
     version = header.version;
     language = header.language;
+    memcpy(&_padding, header.padding, sizeof(header.padding));
     name = (char*)name.data();
     entries.reserve(sections.size());
     for (size_t sectionID = 0; sectionID < sections.size(); ++sectionID)
@@ -156,6 +157,7 @@ void GMD_Registry::Save(stream_ptr& out) const
     memcpy(gmd_header.magic, "GMD\0", 4);
     gmd_header.version = version;
     gmd_header.language = language;
+    memcpy(gmd_header.padding, &_padding, sizeof(gmd_header.padding));
     gmd_header.labelCount = entries.size();
     gmd_header.sectionCount = entries.size();
     gmd_header.labelSize = 0;   //< to be filled in the entries loop

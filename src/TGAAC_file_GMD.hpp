@@ -20,6 +20,7 @@ struct GMD_Registry
     uint32_t language;
     std::string name;
     std::vector<GMD_Entry> entries;
+    uint64_t _padding; ///< Only relevant for byte-equal Load/Save
 
     void Load(stream_ptr& in);
     void Save(stream_ptr& out) const;

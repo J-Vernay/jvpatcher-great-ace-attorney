@@ -105,12 +105,6 @@ void test_GMD_Archive(TestCase& T, stream_ptr& gmdStream)
     std::string_view view = dynamic_cast<std::stringbuf&>(*gmdOut.get()).view();
     std::span<uint8_t> outputBytes{(uint8_t*)view.data(), view.size()};
 
-    GMD_Registry gmd2;
-    gmd2.Load(gmdOut);
-
-    stream_ptr{"../in.bin", std::ios::out | std::ios::trunc}.Write(inputBytes);
-    stream_ptr{"../out.bin", std::ios::out | std::ios::trunc}.Write(outputBytes);
-
     T.Check(inputBytes.size() == outputBytes.size(), //
             "size mismatch, in={} out={}", inputBytes.size(), outputBytes.size());
 
@@ -124,17 +118,9 @@ void test_GMD_Archive(TestCase& T, stream_ptr& gmdStream)
         if (pos == inputBytes.size())
             break; // done, no mismatch
 
-        bool mismatchOk = true;
-        if (pos == 12)
-            pos = 20; // Range [12;20[ is padding: mismatch is OK
-        else
-            mismatchOk = false;
-
-        T.Check(mismatchOk, "mismatch at 0x{:X}:\n\tin ={}\n\tout={}\n", pos,
+        T.Check(false, "mismatch at 0x{:X}:\n\tin ={}\n\tout={}\n", pos,
                 fmt::join(inputBytes.subspan(pos, 10), ","),
                 fmt::join(outputBytes.subspan(pos, 10), ","));
         pos += 8;
-        if (pos > 0x2900)
-            fmt::print("hey\n");
     }
 }
