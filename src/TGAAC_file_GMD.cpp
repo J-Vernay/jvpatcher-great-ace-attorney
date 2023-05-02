@@ -164,18 +164,22 @@ void GMD_Registry::Save(stream_ptr& out) const
 
     // Entries and BucketList
 
-    int64_t offset = 0;
-    //offset += sizeof(GMD_FileHeader);
-    //offset += name.size() + 1;
-    //offset += entries.size() * sizeof(GMD_Entry);
-    //offset += sizeof(GMD_FileBuckets);
-
     std::vector<GMD_FileLabelEntry> gmd_labelEntries;
     gmd_labelEntries.reserve(entries.size());
 
     GMD_FileBuckets gmd_buckets{};
 
-    for (size_t i = 0; i < entries.size(); ++i)
+    // The bucket linked list in TGAAC files are from lower to upper indices.
+    // Even if we could use the reverse order for simpler linked list code,
+    // we want to have mostly byte-equal load/save files, for validation pruposes.
+    //
+    // So we need to store the last entry of each bucket linked list (the "tail"),
+    // so we can update it to refer to the next entry.
+    std::array<GMD_FileLabelEntry*, 256> bucketTails;
+    bucketTails.fill(nullptr);
+
+    int64_t offset = 0;
+    for (uint64_t i = 0; i < entries.size(); ++i)
     {
         GMD_Entry const& entry = entries[i];
         GMD_FileLabelEntry& fileEntry = gmd_labelEntries.emplace_back();
@@ -183,14 +187,20 @@ void GMD_Registry::Save(stream_ptr& out) const
         uint32_t hash0 = ~crc32(0, entry.key.data(), entry.key.size());
         uint32_t hash1 = ~crc32(~hash0, entry.key.data(), entry.key.size());
         uint32_t hash2 = ~crc32(~hash1, entry.key.data(), entry.key.size());
-        uint64_t& bucket = gmd_buckets.buckets[hash0 & 0xFF];
+
+        uint8_t bucket = hash0 & 0xFF;
+        GMD_FileLabelEntry* previous = std::exchange(bucketTails[bucket], &fileEntry);
+        if (previous)
+            previous->listLink = (i > 0 ? i : -1);
+        else
+            gmd_buckets.buckets[bucket] = (i > 0 ? i : -1);
 
         fileEntry.sectionID = i;
         fileEntry.hash1 = hash1;
         fileEntry.hash2 = hash2;
         fileEntry.zeroPadding = 0xCDCDCDCD;
         fileEntry.labelOffset = offset;
-        fileEntry.listLink = std::exchange(bucket, i > 0 ? i : -1);
+        fileEntry.listLink = 0;
 
         gmd_header.labelSize += entry.key.size() + 1;
         gmd_header.sectionSize += entry.value.size() + 1;

@@ -6,6 +6,8 @@
 
 #include "Utility.hpp"
 
+#include <map>
+
 struct GMD_Entry
 {
     std::string key;

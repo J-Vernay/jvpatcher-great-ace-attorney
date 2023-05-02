@@ -4,14 +4,43 @@
 #include "../TGAAC_file_ARC.hpp"
 #include "../TGAAC_file_GMD.hpp"
 #include "../Utility.hpp"
+#include <bits/ranges_util.h>
 #include <filesystem>
-
-void test_ARC_Archive(stream_ptr& arcStream);
-void test_GMD_Archive(stream_ptr& gmdStream);
 
 // For debugging purposes
 // fs::path const TGAAC_DIR = "~/.local/share/Steam/steamapps/common/TGAAC";
 // fs::path const ARCHIVE_DIR = TGAAC_DIR / "nativeDX11x64/archive";
+
+struct TestCase
+{
+    int32_t nbChecks{};
+    int32_t nbFailures{};
+
+    template <typename S, typename... TArgs>
+    bool Check(bool cond, S const& format, TArgs const&... args)
+    {
+        ++nbChecks;
+        if (cond)
+            return true;
+        ++nbFailures;
+        fmt::vprint(format, fmt::make_format_args(args...));
+        return false;
+    }
+
+    template <typename S, typename... TArgs>
+    void Require(bool cond, S const& format, TArgs const&... args)
+    {
+        ++nbChecks;
+        if (cond)
+            return;
+        ++nbFailures;
+        fmt::vprint(format, fmt::make_format_args(args...));
+        throw *this;
+    }
+};
+
+void test_ARC_Archive(TestCase& T, stream_ptr& arcStream);
+void test_GMD_Archive(TestCase& T, stream_ptr& gmdStream);
 
 int main(int argc, char** argv)
 {
@@ -22,8 +51,7 @@ int main(int argc, char** argv)
     }
 
     fs::path archiveFolder = argv[1];
-    int nbErrors = 0;
-    int nbTests = 0;
+    TestCase T;
     for (fs::path const& p : fs::recursive_directory_iterator(archiveFolder))
     {
         if (p.extension() != ".arc")
@@ -31,21 +59,19 @@ int main(int argc, char** argv)
         try
         {
             stream_ptr arcStream{p};
-            test_ARC_Archive(arcStream);
+            test_ARC_Archive(T, arcStream);
         }
-        catch (std::exception const& e)
+        catch (TestCase&)
         {
-            fmt::print("ERROR with {} - {}\n", fs::relative(p, archiveFolder).string(),
-                       e.what());
-            ++nbErrors;
-            ++nbTests;
+            fmt::print("ERROR with {}\n", fs::relative(p, archiveFolder).string());
         }
     }
-    fmt::print("NB_ERRORS: {}\n", nbErrors);
+    fmt::print("nbChecks   = {}\n", T.nbChecks);
+    fmt::print("nbFailures = {}\n", T.nbFailures);
     return EXIT_SUCCESS;
 }
 
-void test_ARC_Archive(stream_ptr& arcStream)
+void test_ARC_Archive(TestCase& T, stream_ptr& arcStream)
 {
     ARC_Archive arc;
     arc.Load(arcStream);
@@ -56,12 +82,12 @@ void test_ARC_Archive(stream_ptr& arcStream)
         {
             fmt::print("Testing {} / {}...\n", arcStream.Name(), entry.filename);
             stream_ptr gmdStream{entry.filename, entry.Decompress()};
-            test_GMD_Archive(gmdStream);
+            test_GMD_Archive(T, gmdStream);
         }
     }
 }
 
-void test_GMD_Archive(stream_ptr& gmdStream)
+void test_GMD_Archive(TestCase& T, stream_ptr& gmdStream)
 {
     size_t fileSize = gmdStream.SeekInput(0, std::ios::end);
     gmdStream.SeekInput(0, std::ios::beg);
@@ -82,27 +108,33 @@ void test_GMD_Archive(stream_ptr& gmdStream)
     GMD_Registry gmd2;
     gmd2.Load(gmdOut);
 
-    stream_ptr{"in.bin", std::ios::out | std::ios::trunc}.Write(inputBytes);
-    stream_ptr{"out.bin", std::ios::out | std::ios::trunc}.Write(outputBytes);
+    stream_ptr{"../in.bin", std::ios::out | std::ios::trunc}.Write(inputBytes);
+    stream_ptr{"../out.bin", std::ios::out | std::ios::trunc}.Write(outputBytes);
 
-    if (inputBytes.size() != outputBytes.size())
-        gmdOut.Error("size mismatch, in={} out={}", inputBytes.size(),
-                     outputBytes.size());
+    T.Check(inputBytes.size() == outputBytes.size(), //
+            "size mismatch, in={} out={}", inputBytes.size(), outputBytes.size());
 
-    auto it = std::ranges::mismatch(inputBytes, outputBytes);
-    int64_t pos = it.in1 - inputBytes.begin();
-    if (pos == 12)
+    int64_t pos = 0;
+    while (true)
     {
-        // Range [12;20[ is padding: mismatch is OK
-        it = std::ranges::mismatch(inputBytes.subspan(pos + 8),
-                                   outputBytes.subspan(pos + 8));
+        std::ranges::in_in_result it =
+            std::ranges::mismatch(inputBytes.subspan(pos), outputBytes.subspan(pos));
+
         pos = it.in1 - inputBytes.begin();
-    }
+        if (pos == inputBytes.size())
+            break; // done, no mismatch
 
-    if (pos < inputBytes.size())
-    {
-        gmdOut.Error("mismatch at {}:\n\tin ={}\n\tout={}", pos,
-                     fmt::join(inputBytes.subspan(pos, 10), ","),
-                     fmt::join(outputBytes.subspan(pos, 10), ","));
+        bool mismatchOk = true;
+        if (pos == 12)
+            pos = 20; // Range [12;20[ is padding: mismatch is OK
+        else
+            mismatchOk = false;
+
+        T.Check(mismatchOk, "mismatch at 0x{:X}:\n\tin ={}\n\tout={}\n", pos,
+                fmt::join(inputBytes.subspan(pos, 10), ","),
+                fmt::join(outputBytes.subspan(pos, 10), ","));
+        pos += 8;
+        if (pos > 0x2900)
+            fmt::print("hey\n");
     }
 }
