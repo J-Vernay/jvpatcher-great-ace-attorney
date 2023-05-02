@@ -43,6 +43,11 @@ int64_t stream_ptr::SeekInput(int64_t off, std::ios::seekdir seekdir)
     return get()->pubseekoff(off, seekdir, std::ios::in);
 }
 
+int64_t stream_ptr::SeekOutput(int64_t off, std::ios::seekdir seekdir)
+{
+    return get()->pubseekoff(off, seekdir, std::ios::out);
+}
+
 std::string_view stream_ptr::Name() const noexcept
 {
     return m_name;
@@ -63,4 +68,16 @@ std::string stream_ptr::ReadCStr()
             return str;
         str.push_back(c);
     }
+}
+
+std::string stream_ptr::ReadAll()
+{
+    std::string result;
+    int64_t originalPos = SeekInput(0, std::ios::cur);
+    int64_t fileSize = SeekInput(0, std::ios::end);
+    result.resize(fileSize);
+    SeekInput(0, std::ios::beg);
+    Read(std::span{result});
+    SeekInput(originalPos, std::ios::beg);
+    return result;
 }

@@ -37,6 +37,33 @@ struct TestCase
         fmt::vprint(format, fmt::make_format_args(args...));
         throw *this;
     }
+
+    bool CheckMismatch(std::span<uint8_t const> a, std::span<uint8_t const> b)
+    {
+        int64_t pos = 0;
+        bool wasError = false;
+        // FOR DEBUG
+        // stream_ptr{"../a.bin", std::ios::out}.Write(a);
+        // stream_ptr{"../b.bin", std::ios::out}.Write(b);
+        while (true)
+        {
+            Check(a.size() == b.size(), "size mismatch, in={} out={}\n", a.size(),
+                  b.size());
+
+            std::ranges::in_in_result it =
+                std::ranges::mismatch(a.subspan(pos), b.subspan(pos));
+
+            pos = it.in1 - a.begin();
+            if (pos == a.size())
+                break; // done, no mismatch
+
+            Check(false, "mismatch at 0x{:X}:\n\tin =0x{:02X}\n\tout=0x{:02X}\n", pos,
+                  fmt::join(a.subspan(pos, 10), "'"), fmt::join(b.subspan(pos, 10), "'"));
+            pos += 8;
+            wasError = true;
+        }
+        return wasError;
+    }
 };
 
 void test_ARC_Archive(TestCase& T, stream_ptr& arcStream);
@@ -76,6 +103,22 @@ void test_ARC_Archive(TestCase& T, stream_ptr& arcStream)
     ARC_Archive arc;
     arc.Load(arcStream);
 
+    fmt::print("Testing {}\n", arcStream.Name());
+
+    // Check ARC Save/Load identity
+
+    std::string inputStorage = arcStream.ReadAll();
+    std::span<uint8_t> inputBytes{(uint8_t*)inputStorage.data(), inputStorage.size()};
+
+    stream_ptr arcOut{fmt::format("out--{}", arcStream.Name()), std::string{}};
+    arc.Save(arcOut);
+    std::string_view view = dynamic_cast<std::stringbuf&>(*arcOut.get()).view();
+    std::span<uint8_t> outputBytes{(uint8_t*)view.data(), view.size()};
+
+    T.CheckMismatch(inputBytes, outputBytes);
+
+    // Check GMD
+
     for (ARC_Entry const& entry : arc.entries)
     {
         if (entry.ext == ARC_ExtensionHash::GMD)
@@ -89,13 +132,8 @@ void test_ARC_Archive(TestCase& T, stream_ptr& arcStream)
 
 void test_GMD_Archive(TestCase& T, stream_ptr& gmdStream)
 {
-    size_t fileSize = gmdStream.SeekInput(0, std::ios::end);
-    gmdStream.SeekInput(0, std::ios::beg);
-
-    auto inputStorage = std::make_unique_for_overwrite<uint8_t[]>(fileSize);
-    std::span<uint8_t> inputBytes{inputStorage.get(), fileSize};
-    gmdStream.Read(inputBytes);
-    gmdStream.SeekInput(0, std::ios::beg);
+    std::string inputStorage = gmdStream.ReadAll();
+    std::span<uint8_t> inputBytes{(uint8_t*)inputStorage.data(), inputStorage.size()};
 
     GMD_Registry gmd;
     gmd.Load(gmdStream);
@@ -105,22 +143,5 @@ void test_GMD_Archive(TestCase& T, stream_ptr& gmdStream)
     std::string_view view = dynamic_cast<std::stringbuf&>(*gmdOut.get()).view();
     std::span<uint8_t> outputBytes{(uint8_t*)view.data(), view.size()};
 
-    T.Check(inputBytes.size() == outputBytes.size(), //
-            "size mismatch, in={} out={}", inputBytes.size(), outputBytes.size());
-
-    int64_t pos = 0;
-    while (true)
-    {
-        std::ranges::in_in_result it =
-            std::ranges::mismatch(inputBytes.subspan(pos), outputBytes.subspan(pos));
-
-        pos = it.in1 - inputBytes.begin();
-        if (pos == inputBytes.size())
-            break; // done, no mismatch
-
-        T.Check(false, "mismatch at 0x{:X}:\n\tin ={}\n\tout={}\n", pos,
-                fmt::join(inputBytes.subspan(pos, 10), ","),
-                fmt::join(outputBytes.subspan(pos, 10), ","));
-        pos += 8;
-    }
+    T.CheckMismatch(inputBytes, outputBytes);
 }

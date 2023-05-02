@@ -37,6 +37,8 @@ class stream_ptr : public std::unique_ptr<std::streambuf>
     std::string_view Name() const noexcept;
 
     int64_t SeekInput(int64_t off, std::ios::seekdir);
+    int64_t SeekOutput(int64_t off, std::ios::seekdir);
+
     template <typename T>
     void Read(std::span<T> out);
     template <typename T>
@@ -45,6 +47,7 @@ class stream_ptr : public std::unique_ptr<std::streambuf>
     void Sync();
 
     std::string ReadCStr();
+    std::string ReadAll();
 
     /// Concise unconditional throw.
     template <typename S, typename... TArgs>

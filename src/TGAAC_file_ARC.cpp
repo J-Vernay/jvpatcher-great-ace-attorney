@@ -3,6 +3,9 @@
 
 #include "TGAAC_file_ARC.hpp"
 
+// Based on Kuriimu2 :
+// https://github.com/FanTranslatorsInternational/Kuriimu2/tree/dev/plugins/Capcom/plugin_mt_framework/Archives
+
 struct ARC_FileHeader
 {
     char magic[4];
@@ -43,7 +46,7 @@ void ARC_Archive::Load(stream_ptr& arc)
 
     // 2. Determine whether we have ARC_FileEntry or ARC_FileEntryExtendedName
 
-    bool hasExtendedNames = [&] {
+    hasExtendedNames = [&] {
         ARC_FileEntry firstEntry;
         arc.Read(std::span{&firstEntry, 1});
         arc.SeekInput(-sizeof(firstEntry), std::ios::cur);
@@ -65,6 +68,7 @@ void ARC_Archive::Load(stream_ptr& arc)
             entry.filename = e.fileName;
             entry.ext = ARC_ExtensionHash{e.extensionHash};
             entry.decompSize = e.decompSize & 0x00FFFFFF;
+            entry.unknownFlags = (e.decompSize >> 24);
             entry.content.resize(e.compSize);
             arc.SeekInput(e.offset, std::ios::beg);
             arc.Read(std::span{entry.content});
@@ -75,6 +79,51 @@ void ARC_Archive::Load(stream_ptr& arc)
         funcReadEntries.operator()<ARC_FileEntryExtendedName>();
     else
         funcReadEntries.operator()<ARC_FileEntry>();
+}
+
+void ARC_Archive::Save(stream_ptr& out) const
+{
+    ARC_FileHeader arc_header;
+    memcpy(arc_header.magic, "ARC\0", 4);
+    arc_header.version = version;
+    arc_header.entryCount = entries.size();
+    out.Write(std::span{&arc_header, 1});
+
+    auto funcReadEntries = [&]<typename TFileEntry>() {
+        std::vector<TFileEntry> fileEntries;
+        fileEntries.reserve(entries.size());
+
+        int64_t contentBase = sizeof(ARC_FileHeader);
+        contentBase += entries.size() * sizeof(TFileEntry);
+        contentBase += (-contentBase) & 0x7FFF; // alignas(0x8000)
+        int64_t contentOffset = contentBase;
+
+        for (ARC_Entry const& entry : entries)
+        {
+            TFileEntry& e = fileEntries.emplace_back();
+            if (entry.filename.size() >= sizeof(e.fileName))
+                out.Error("Filename size {} too big", entry.filename.size());
+            memcpy(e.fileName, entry.filename.c_str(), entry.filename.size());
+            e.extensionHash = (uint32_t)entry.ext;
+            e.compSize = entry.content.size();
+            e.decompSize = entry.decompSize | ((uint32_t)entry.unknownFlags << 24);
+            e.offset = contentOffset;
+
+            contentOffset += entry.content.size();
+        }
+        out.Write(std::span{fileEntries});
+        int64_t pos = out.SeekOutput(0, std::ios::cur);
+        std::vector<char> padding(contentBase - pos, 0);
+        out.Write(std::span{padding});
+    };
+
+    if (hasExtendedNames)
+        funcReadEntries.operator()<ARC_FileEntryExtendedName>();
+    else
+        funcReadEntries.operator()<ARC_FileEntry>();
+
+    for (ARC_Entry const& entry : entries)
+        out.Write(std::span{entry.content});
 }
 
 #include <zlib.h>
