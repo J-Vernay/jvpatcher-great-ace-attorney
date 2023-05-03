@@ -128,20 +128,20 @@ void ARC_Archive::Save(stream_ptr& out) const
 
 #include <zlib.h>
 
-std::string ARC_Entry::Decompress() const
+std::string ARC_Entry::Decompress(std::string_view input, uint32_t decompSize)
 {
-    if (content.size() == decompSize)
-        return content;
+    if (input.size() == decompSize)
+        return std::string{input.data(), input.size()};
 
-    uint8_t magic = (uint8_t)content[0];
+    uint8_t magic = (uint8_t)input[0];
     if ((magic & 0x0F) != 8 || (magic & 0xF0) > 0x70)
         throw runtime_error("Unexpected decompression first byte: {}", magic);
 
     std::string output;
     output.resize(decompSize);
     z_stream strm = {};
-    strm.next_in = (Bytef*)content.data();
-    strm.avail_in = content.size();
+    strm.next_in = (Bytef*)input.data();
+    strm.avail_in = input.size();
     strm.next_out = (Bytef*)output.data();
     strm.avail_out = output.size();
 

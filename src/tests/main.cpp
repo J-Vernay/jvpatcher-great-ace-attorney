@@ -124,7 +124,8 @@ void test_ARC_Archive(TestCase& T, stream_ptr& arcStream)
         if (entry.ext == ARC_ExtensionHash::GMD)
         {
             fmt::print("Testing {} / {}...\n", arcStream.Name(), entry.filename);
-            stream_ptr gmdStream{entry.filename, entry.Decompress()};
+            stream_ptr gmdStream{entry.filename,
+                                 ARC_Entry::Decompress(entry.content, entry.decompSize)};
             test_GMD_Archive(T, gmdStream);
         }
     }

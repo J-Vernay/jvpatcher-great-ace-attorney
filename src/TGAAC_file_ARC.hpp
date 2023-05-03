@@ -19,7 +19,7 @@ struct ARC_Entry
     uint32_t decompSize;   ///< The content size if decompressed.
     uint8_t unknownFlags;  ///< Can vary among ARC entries, so probably some flags.
 
-    std::string Decompress() const;
+    static std::string Decompress(std::string_view input, uint32_t decompSize);
 };
 
 struct ARC_Archive

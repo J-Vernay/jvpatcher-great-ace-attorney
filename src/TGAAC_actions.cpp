@@ -121,7 +121,7 @@ void TGAAC_ExtractARC(stream_ptr& arcStream, fs::path const& destFolder)
 
     for (auto const& [name, entry] : mapNameEntry)
     {
-        std::string s = entry.Decompress();
+        std::string s = ARC_Entry::Decompress(entry.content, entry.decompSize);
         stream_ptr gmdStream{name, s};
         TGAAC_ExtractGMD(gmdStream, destFolder / name);
     }
