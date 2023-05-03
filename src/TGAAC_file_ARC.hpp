@@ -17,9 +17,11 @@ struct ARC_Entry
     ARC_ExtensionHash ext; ///< Number representing file type
     std::string content;   ///< Byte content of the file, may be compressed.
     uint32_t decompSize;   ///< The content size if decompressed.
-    uint8_t unknownFlags;  ///< Can vary among ARC entries, so probably some flags.
+    bool isCompressed;     ///< Is the "content" field compressed with deflate algorithm.
+    uint8_t unknownFlags;  ///< Unknown, vary among ARC entries, so probably some flags.
 
     static std::string Decompress(std::string_view input, uint32_t decompSize);
+    static std::string Compress(std::string_view input);
 };
 
 struct ARC_Archive

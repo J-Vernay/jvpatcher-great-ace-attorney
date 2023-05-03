@@ -70,8 +70,17 @@ void ARC_Archive::Load(stream_ptr& arc)
             entry.decompSize = e.decompSize & 0x00FFFFFF;
             entry.unknownFlags = (e.decompSize >> 24);
             entry.content.resize(e.compSize);
+            entry.isCompressed = (e.decompSize != e.compSize);
             arc.SeekInput(e.offset, std::ios::beg);
             arc.Read(std::span{entry.content});
+
+            if (entry.isCompressed)
+            {
+                // Check if content is actually compressed with deflate
+                uint8_t magic = (uint8_t)entry.content[0];
+                if ((magic & 0x0F) != 8 || (magic & 0xF0) > 0x70)
+                    arc.Error("Unexpected decompression first byte: {}", magic);
+            }
         }
     };
 
@@ -159,7 +168,36 @@ std::string ARC_Entry::Decompress(std::string_view input, uint32_t decompSize)
 
     res = inflateEnd(&strm);
     if (res != Z_OK)
-        throw runtime_error("Error with ZLIB inflatEnd: {}", res);
+        throw runtime_error("Error with ZLIB inflateEnd: {}", res);
 
+    return output;
+}
+
+std::string ARC_Entry::Compress(std::string_view input)
+{
+    std::string output;
+
+    z_stream strm = {};
+    strm.next_in = (Bytef*)input.data();
+    strm.avail_in = input.size();
+
+    int res = deflateInit(&strm, Z_DEFAULT_COMPRESSION);
+    if (res != Z_OK)
+        throw runtime_error("Error with ZLIB deflateInit: {}", res);
+
+    output.resize(deflateBound(&strm, input.size()));
+    strm.next_out = (Bytef*)output.data();
+    strm.avail_out = output.size();
+
+    res = deflate(&strm, Z_FINISH);
+    if (res != Z_STREAM_END)
+        throw runtime_error("Error with ZLIB deflate: {}", res);
+
+    res = deflateEnd(&strm);
+    if (res != Z_OK)
+        throw runtime_error("Error with ZLIB deflateEnd: {}", res);
+
+    output.resize(strm.total_out);
+    output.shrink_to_fit();
     return output;
 }

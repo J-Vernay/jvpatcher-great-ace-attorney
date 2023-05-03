@@ -15,6 +15,7 @@ struct TestCase
 {
     int32_t nbChecks{};
     int32_t nbFailures{};
+    int64_t nbCheckBytes{};
 
     template <typename S, typename... TArgs>
     bool Check(bool cond, S const& format, TArgs const&... args)
@@ -42,6 +43,7 @@ struct TestCase
     {
         int64_t pos = 0;
         bool wasError = false;
+        nbCheckBytes += std::min(a.size(), b.size());
         // FOR DEBUG
         // stream_ptr{"../a.bin", std::ios::out}.Write(a);
         // stream_ptr{"../b.bin", std::ios::out}.Write(b);
@@ -93,8 +95,9 @@ int main(int argc, char** argv)
             fmt::print("ERROR with {}\n", fs::relative(p, archiveFolder).string());
         }
     }
-    fmt::print("nbChecks   = {}\n", T.nbChecks);
-    fmt::print("nbFailures = {}\n", T.nbFailures);
+    fmt::print("nbChecks     = {}\n", T.nbChecks);
+    fmt::print("nbFailures   = {}\n", T.nbFailures);
+    fmt::print("nbCheckBytes = {}\n", T.nbCheckBytes);
     return EXIT_SUCCESS;
 }
 
@@ -124,9 +127,18 @@ void test_ARC_Archive(TestCase& T, stream_ptr& arcStream)
         if (entry.ext == ARC_ExtensionHash::GMD)
         {
             fmt::print("Testing {} / {}...\n", arcStream.Name(), entry.filename);
-            stream_ptr gmdStream{entry.filename,
-                                 ARC_Entry::Decompress(entry.content, entry.decompSize)};
+            std::string gmdBytes = ARC_Entry::Decompress(entry.content, entry.decompSize);
+            stream_ptr gmdStream{entry.filename, gmdBytes};
             test_GMD_Archive(T, gmdStream);
+
+            if (entry.isCompressed)
+            {
+                // Checks whether decomp+comp is identity function
+                std::string gmdComp = ARC_Entry::Compress(gmdBytes);
+                std::span before{(uint8_t*)entry.content.data(), entry.content.size()};
+                std::span after{(uint8_t*)gmdComp.data(), gmdComp.size()};
+                T.CheckMismatch(before, after);
+            }
         }
     }
 }
