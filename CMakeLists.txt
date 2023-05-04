@@ -5,6 +5,7 @@ project(TGAAC_jv_patcher)
 find_package(ZLIB)
 add_subdirectory(external/fmtlib)
 add_subdirectory(external/libarchive)
+add_subdirectory(external/pugixml)
 
 add_library(rapidjson INTERFACE)
 target_include_directories(rapidjson INTERFACE external/rapidjson/include)
@@ -21,6 +22,7 @@ target_link_libraries(TGAAC_jv_patcher PUBLIC ZLIB::ZLIB)
 target_link_libraries(TGAAC_jv_patcher PUBLIC fmt::fmt)
 target_link_libraries(TGAAC_jv_patcher PUBLIC rapidjson)
 target_link_libraries(TGAAC_jv_patcher PUBLIC archive_static)
+target_link_libraries(TGAAC_jv_patcher PUBLIC pugixml::static)
 target_include_directories(TGAAC_jv_patcher PUBLIC external/libarchive/libarchive)
 
 add_executable(TGAAC_jv_patcher_exe

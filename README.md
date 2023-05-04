@@ -22,13 +22,22 @@ With:
 
 This work could not have been done without the preliminary
 retro-engineering work for Kuriimu 1 & 2, especially:
+
 - ARC: https://github.com/FanTranslatorsInternational/Kuriimu2/tree/dev/plugins/Capcom/plugin_mt_framework/Archives
 - GMD: https://github.com/IcySon55/Kuriimu/tree/master/src/text/text_gmd
 
 And without the following free (as in freedom) libraries:
+
 - fmtlib : https://github.com/fmtlib/fmt  
   Under MIT license:  
   Copyright (c) 2012 - present, Victor Zverovich and {fmt} contributors
+- libarchive :
+  Mostly under 2-clause BSD license:
+  Copyright (c) 2003-2018 Tim Kientzle
 - rapidjson : https://rapidjson.org/  
   Under MIT license:
   Copyright (C) 2015 THL A29 Limited, a Tencent company, and Milo Yip.
+- pugixml : https://pugixml.org/
+  Under MIT license:
+  Copyright (c) 2006-2018 Arseny Kapoulkine
+

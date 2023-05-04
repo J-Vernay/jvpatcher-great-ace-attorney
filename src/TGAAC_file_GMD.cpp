@@ -223,6 +223,16 @@ void GMD_Registry::Save(stream_ptr& out) const
     out.Sync();
 }
 
+void GMD_Registry::ReadFiles(fs::path const& inFolder)
+{
+    throw std::runtime_error("Not implemented yet");
+}
+
+void GMD_Registry::WriteFiles(fs::path const& outFolder) const
+{
+    throw std::runtime_error("Not implemented yet");
+}
+
 std::string GMD_EscapeEntryJV(std::string_view input)
 {
     std::string result;

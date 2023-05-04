@@ -18,6 +18,7 @@
 #include <vector>
 
 #include <fmt/format.h>
+#include <pugixml.hpp>
 #include <rapidjson/filewritestream.h>
 #include <rapidjson/prettywriter.h>
 #include <rapidjson/rapidjson.h>
