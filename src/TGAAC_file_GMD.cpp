@@ -230,6 +230,25 @@ void GMD_Registry::ReadFiles(fs::path const& inFolder)
 
 void GMD_Registry::WriteFiles(fs::path const& outFolder) const
 {
+    // Create metafile, storing Registry infos which are not part of entries.
+    pugi::xml_document xmlMeta;
+    pugi::xml_node xmlRoot = xmlMeta.append_child("GMD_Registry");
+
+    xmlRoot.append_child("version").text().set(version);
+    xmlRoot.append_child("language").text().set(language);
+    xmlRoot.append_child("name").text().set(name.c_str());
+    xmlRoot.append_child("_padding").text().set(_padding);
+
+    pugi::xml_node xmlEntries = xmlRoot.append_child("entries");
+    for (GMD_Entry const& entry : entries)
+    {
+        pugi::xml_node xmlEntry = xmlEntries.append_child("GMD_Entry");
+        xmlEntry.append_attribute("key").set_value(entry.key.c_str());
+        xmlEntry.text().set("TODO");
+    }
+
+    xmlMeta.save_file((outFolder / "__meta__.xml").string().c_str());
+
     throw std::runtime_error("Not implemented yet");
 }
 
