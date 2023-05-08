@@ -22,6 +22,8 @@ struct ARC_Entry
 
     static std::string Decompress(std::string_view input, uint32_t decompSize);
     static std::string Compress(std::string_view input);
+
+    bool operator==(ARC_Entry const&) const noexcept = default;
 };
 
 struct ARC_Archive
@@ -34,6 +36,8 @@ struct ARC_Archive
     void Save(stream_ptr& out) const;
     void ReadFiles(fs::path const& inFolder);
     void WriteFiles(fs::path const& outFolder) const;
+
+    bool operator==(ARC_Archive const&) const noexcept = default;
 };
 
 #endif

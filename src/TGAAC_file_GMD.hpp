@@ -12,6 +12,8 @@ struct GMD_Entry
 {
     std::string key;
     std::string value;
+
+    bool operator==(GMD_Entry const&) const noexcept = default;
 };
 
 struct GMD_Registry
@@ -26,6 +28,8 @@ struct GMD_Registry
     void Save(stream_ptr& out) const;
     void ReadFiles(fs::path const& inFolder);
     void WriteFiles(fs::path const& outFolder) const;
+
+    bool operator==(GMD_Registry const&) const noexcept = default;
 };
 
 /// Modifies the given GMD to make edition more easier:

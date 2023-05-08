@@ -28,6 +28,13 @@
 
 namespace fs = std::filesystem;
 
+/// Used extensively for errors.
+struct runtime_error : std::runtime_error
+{
+    template <typename S, typename... TArgs>
+    explicit runtime_error(S const& format, TArgs const&... args);
+};
+
 class stream_ptr : public std::unique_ptr<std::streambuf>
 {
     std::string m_name;
@@ -58,12 +65,8 @@ class stream_ptr : public std::unique_ptr<std::streambuf>
 /// Removes directory separators and whitespaces.
 std::string ConvertToID(std::string_view input);
 
-/// Used extensively for errors.
-struct runtime_error : std::runtime_error
-{
-    template <typename S, typename... TArgs>
-    explicit runtime_error(S const& format, TArgs const&... args);
-};
+/// Throw an exception if given path is not an empty directory.
+void EnsureEmptyDirectory(fs::path const& folder);
 
 //
 // ==================== IMPLEMENTATION ====================

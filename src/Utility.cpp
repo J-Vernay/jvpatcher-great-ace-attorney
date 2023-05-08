@@ -3,6 +3,7 @@
 
 #include "Utility.hpp"
 #include <cctype>
+#include <filesystem>
 #include <fstream>
 
 using namespace std;
@@ -80,4 +81,13 @@ std::string stream_ptr::ReadAll()
     Read(std::span{result});
     SeekInput(originalPos, std::ios::beg);
     return result;
+}
+
+void EnsureEmptyDirectory(fs::path const& folder)
+{
+    if (fs::status(folder).type() != fs::file_type::directory)
+        throw ::runtime_error("Not a directory: {}", folder.string());
+    for (fs::path const& entry : fs::directory_iterator(folder))
+        throw ::runtime_error("Not an empty directory, found {} in {}",
+                              entry.filename().string(), folder.string());
 }

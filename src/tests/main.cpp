@@ -151,6 +151,15 @@ void test_GMD_Archive(TestCase& T, stream_ptr& gmdStream)
     GMD_Registry gmd;
     gmd.Load(gmdStream);
 
+    fs::remove_all("../test-tmp");
+    fs::create_directory("../test-tmp");
+    gmd.WriteFiles("../test-tmp");
+
+    GMD_Registry gmd2;
+    gmd2.ReadFiles("../test-tmp");
+
+    T.Check(gmd == gmd2, "GMD WriteFiles() and ReadFiles() are not symmetrical");
+
     stream_ptr gmdOut{fmt::format("out--{}", gmdStream.Name()), std::string{}};
     gmd.Save(gmdOut);
     std::string_view view = dynamic_cast<std::stringbuf&>(*gmdOut.get()).view();
