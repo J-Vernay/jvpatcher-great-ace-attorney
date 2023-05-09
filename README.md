@@ -34,9 +34,6 @@ And without the following free (as in freedom) libraries:
 - libarchive :
   Mostly under 2-clause BSD license:
   Copyright (c) 2003-2018 Tim Kientzle
-- rapidjson : https://rapidjson.org/  
-  Under MIT license:
-  Copyright (C) 2015 THL A29 Limited, a Tencent company, and Milo Yip.
 - pugixml : https://pugixml.org/
   Under MIT license:
   Copyright (c) 2006-2018 Arseny Kapoulkine
