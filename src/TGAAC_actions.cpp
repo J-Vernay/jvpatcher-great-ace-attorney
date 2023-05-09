@@ -4,164 +4,156 @@
 #include "TGAAC_actions.hpp"
 #include "TGAAC_file_ARC.hpp"
 #include "TGAAC_file_GMD.hpp"
-#include <algorithm>
-#include <filesystem>
-#include <rapidjson/document.h>
-#include <rapidjson/filewritestream.h>
-#include <rapidjson/prettywriter.h>
 
-static void _ensureEmptyFolder(fs::path const& folder)
+static constexpr std::string_view META_FILE = "__meta__.xml";
+
+void TGAAC_WriteFolder_ARC(ARC_Archive const& arc, fs::path const& outFolder)
 {
-    if (!fs::exists(folder))
-        fs::create_directory(folder);
-    if (!fs::is_directory(folder))
-        throw runtime_error("Given patch folder exists and is not a directory!");
+    CreateEmptyDirectory(outFolder);
 
-    for (auto&& p : fs::directory_iterator(folder))
-        throw runtime_error("Given patch folder is not empty");
-}
+    pugi::xml_document xmlMeta;
+    pugi::xml_node xmlRoot = xmlMeta.append_child("ARC_Archive");
 
-void TGAAC_ExtractGMD(stream_ptr& gmdStream, fs::path const& destFolder)
-{
-    // 1. Read and determine what is needed to be done.
+    xmlRoot.append_child("version").text().set(arc.version);
+    xmlRoot.append_child("hasExtendedNames").text().set(arc.hasExtendedNames);
 
-    GMD_Registry gmd;
-    gmd.Load(gmdStream);
-    std::unordered_map<std::string, GMD_Entry const&> mapNameEntry;
-
-    for (GMD_Entry const& entry : gmd.entries)
-    {
-        std::string name = ConvertToID(entry.key) + ".jv.xml";
-        if (mapNameEntry.contains(name))
-            throw runtime_error("Duplicated name '{}'", name);
-        mapNameEntry.insert({name, entry});
-    }
-
-    // 2. Prepare workspace
-
-    if (mapNameEntry.size() == 0)
-        return;
-
-    _ensureEmptyFolder(destFolder);
-
-    // 3. Do actual work
-
-    for (auto& [name, entry] : mapNameEntry)
-    {
-        fs::path dest = destFolder / name;
-        FILE* f = fopen(dest.c_str(), "wb");
-        if (f == nullptr)
-            throw runtime_error("Could not open file {}", dest.native());
-
-        //std::string value = GMD_EscapeEntryJV(entry.value);
-        fwrite(entry.value.data(), 1, entry.value.size(), f);
-        fclose(f);
-    }
-
-    // 4. Write metadata
-
-    using namespace rapidjson;
-    FILE* f = fopen((destFolder / "__META__.json").c_str(), "wb");
-    if (f == nullptr)
-        throw runtime_error("Could not open file META.json");
-
-    char writeBuffer[65536];
-    FileWriteStream os{f, writeBuffer, sizeof(writeBuffer)};
-    PrettyWriter<FileWriteStream> json{os};
-
-    json.StartObject();
-    json.Key("version");
-    json.Int64(gmd.version);
-    json.Key("language");
-    json.Int64(gmd.language);
-    json.Key("name");
-    json.String(gmd.name.c_str());
-    json.Key("entries");
-    json.StartObject();
-    for (auto& [name, entry] : mapNameEntry)
-    {
-        json.Key(name.c_str());
-        json.StartObject();
-        json.Key("key");
-        json.String(entry.key.c_str());
-        json.EndObject();
-    }
-    json.EndObject();
-    json.EndObject();
-    fclose(f);
-}
-
-void TGAAC_ExtractARC(stream_ptr& arcStream, fs::path const& destFolder)
-{
-    // 1. Read and determine what is needed to be done.
-
-    ARC_Archive arc;
-    arc.Load(arcStream);
-    std::unordered_map<std::string, ARC_Entry const&> mapNameEntry;
+    pugi::xml_node xmlEntries = xmlRoot.append_child("entries");
 
     for (ARC_Entry const& entry : arc.entries)
     {
-        if (entry.ext == ARC_ExtensionHash::GMD)
-        {
-            std::string name = "gmd__" + ConvertToID(entry.filename);
-            if (mapNameEntry.contains(name))
-                throw runtime_error("Duplicated name '{}' in {}", name);
-            mapNameEntry.insert({name, entry});
-        }
+        if (entry.ext != ARC_ExtensionHash::GMD)
+            continue;
+
+        std::string entryFolder = "gmd__" + ConvertToID(entry.filename);
+        pugi::xml_node xmlEntry = xmlEntries.append_child("GMD_Entry");
+        xmlEntry.append_attribute("key").set_value(entry.filename.c_str());
+        xmlEntry.append_attribute("file").set_value(entryFolder.c_str());
+        xmlEntry.append_child("ext").text().set((uint32_t)entry.ext);
+        xmlEntry.append_child("isCompressed").text().set(entry.isCompressed);
+        xmlEntry.append_child("unknownFlags").text().set(entry.unknownFlags);
+
+        std::string gmdBytes =
+            entry.isCompressed ? ARC_Entry::Decompress(entry.content, entry.decompSize)
+                               : entry.content;
+        stream_ptr gmdStream{entry.filename, gmdBytes};
+        GMD_Registry gmd;
+        gmd.Load(gmdStream);
+        TGAAC_WriteFolder_GMD(gmd, outFolder / entryFolder);
     }
 
-    // 2. Prepare workspace
+    xmlMeta.save_file((outFolder / META_FILE).string().c_str());
+}
 
-    if (mapNameEntry.size() == 0)
-        return;
+void TGAAC_WriteFolder_GMD(GMD_Registry const& gmd, fs::path const& outFolder)
+{
+    CreateEmptyDirectory(outFolder);
 
-    _ensureEmptyFolder(destFolder);
+    // Create metafile, storing Registry infos which are not part of entries.
+    pugi::xml_document xmlMeta;
+    pugi::xml_node xmlRoot = xmlMeta.append_child("GMD_Registry");
 
-    // 3. Do actual work
+    xmlRoot.append_child("version").text().set(gmd.version);
+    xmlRoot.append_child("language").text().set(gmd.language);
+    xmlRoot.append_child("name").text().set(gmd.name.c_str());
+    xmlRoot.append_child("_padding").text().set(gmd._padding);
 
-    for (auto const& [name, entry] : mapNameEntry)
+    pugi::xml_node xmlEntries = xmlRoot.append_child("entries");
+    for (GMD_Entry const& entry : gmd.entries)
     {
-        std::string s = ARC_Entry::Decompress(entry.content, entry.decompSize);
-        stream_ptr gmdStream{name, s};
-        TGAAC_ExtractGMD(gmdStream, destFolder / name);
+        std::string entryFilename = ConvertToID(entry.key) + ".txt";
+        pugi::xml_node xmlEntry = xmlEntries.append_child("GMD_Entry");
+        xmlEntry.append_attribute("key").set_value(entry.key.c_str());
+        xmlEntry.append_attribute("file").set_value(entryFilename.c_str());
+
+        stream_ptr{outFolder / entryFilename, std::ios::out}.Write(
+            std::span{entry.value});
     }
 
-    // 4. Write metadata
+    xmlMeta.save_file((outFolder / META_FILE).string().c_str());
+}
 
-    using namespace rapidjson;
-    FILE* f = fopen((destFolder / "__META__.json").c_str(), "wb");
-    if (f == nullptr)
-        throw runtime_error("Could not open file META.json");
+void TGAAC_ReadFolder_ARC(ARC_Archive& arc, fs::path const& inFolder)
+{
+    arc = {};
 
-    char writeBuffer[65536];
-    FileWriteStream os{f, writeBuffer, sizeof(writeBuffer)};
-    PrettyWriter<FileWriteStream> json{os};
+    pugi::xml_document xmlMeta;
+    pugi::xml_parse_result result =
+        xmlMeta.load_file((inFolder / META_FILE).string().c_str());
 
-    json.StartObject();
-    json.Key("version");
-    json.Int64(arc.version);
-    json.Key("entries");
-    json.StartObject();
-    for (auto& [name, entry] : mapNameEntry)
+    if (!result)
+        throw runtime_error("ARC meta error: {} at {}", result.description(),
+                            result.offset);
+
+    pugi::xml_node xmlRoot = xmlMeta.child("ARC_Archive");
+    arc.version = xmlRoot.child("version").text().as_ullong();
+    arc.hasExtendedNames = xmlRoot.child("hasExtendedNames").text().as_bool();
+
+    pugi::xml_node xmlEntries = xmlRoot.child("entries");
+    for (auto xmlEntry = xmlEntries.first_child(); xmlEntry;
+         xmlEntry = xmlEntry.next_sibling())
     {
-        json.Key(name.c_str());
-        json.StartObject();
-        json.Key("filename");
-        json.String(entry.filename.c_str());
-        json.Key("ext");
-        json.Int64((uint32_t)entry.ext);
-        json.Key("wasCompressed");
-        json.Bool(entry.content.size() != entry.decompSize);
-        json.EndObject();
+        auto& entry = arc.entries.emplace_back();
+
+        entry.filename = xmlEntry.attribute("key").value();
+        std::string entryFolder = xmlEntry.attribute("file").value();
+        entry.ext = (ARC_ExtensionHash)xmlEntry.child("ext").text().as_ullong();
+        entry.isCompressed = xmlEntry.child("isCompressed").text().as_bool();
+        entry.unknownFlags = xmlEntry.child("unknownFlags").text().as_ullong();
+
+        if (entry.ext != ARC_ExtensionHash::GMD)
+            throw runtime_error("Unsupported entry extension {}", (uint32_t)entry.ext);
+
+        GMD_Registry gmd;
+        TGAAC_ReadFolder_GMD(gmd, inFolder / entryFolder);
+        stream_ptr gmdOut = {entry.filename, std::string{}};
+        gmd.Save(gmdOut);
+
+        std::string_view gmdBytes = dynamic_cast<std::stringbuf&>(*gmdOut.get()).view();
+        entry.decompSize = gmdBytes.size();
+
+        if (entry.isCompressed)
+            entry.content = ARC_Entry::Compress(gmdBytes);
+        else
+            entry.content = gmdBytes;
     }
-    json.EndObject();
-    json.EndObject();
-    fclose(f);
+}
+
+void TGAAC_ReadFolder_GMD(GMD_Registry& gmd, fs::path const& inFolder)
+{
+    gmd = {};
+
+    // Create metafile, storing Registry infos which are not part of entries.
+    pugi::xml_document xmlMeta;
+    pugi::xml_parse_result result =
+        xmlMeta.load_file((inFolder / META_FILE).string().c_str());
+
+    if (!result)
+        throw runtime_error("GMD meta error: {} at {}", result.description(),
+                            result.offset);
+
+    pugi::xml_node xmlRoot = xmlMeta.child("GMD_Registry");
+
+    gmd.version = xmlRoot.child("version").text().as_ullong();
+    gmd.language = xmlRoot.child("language").text().as_ullong();
+    gmd.name = xmlRoot.child("name").text().as_string();
+    gmd._padding = xmlRoot.child("_padding").text().as_ullong();
+
+    pugi::xml_node xmlEntries = xmlRoot.child("entries");
+    for (auto xmlEntry = xmlEntries.first_child(); xmlEntry;
+         xmlEntry = xmlEntry.next_sibling())
+    {
+        std::string key = xmlEntry.attribute("key").value();
+        std::string entryFilename = xmlEntry.attribute("file").value();
+
+        auto& entry = gmd.entries.emplace_back();
+        entry.key = std::move(key);
+        entry.value = stream_ptr{inFolder / entryFilename}.ReadAll();
+    }
 }
 
 void TGAAC_GlobalExtract(fs::path const& installFolder, fs::path const& extractFolder)
 {
-    _ensureEmptyFolder(extractFolder);
+    CreateEmptyDirectory(extractFolder);
 
     std::unordered_map<std::string, fs::path> mapNamePath;
 
@@ -180,27 +172,10 @@ void TGAAC_GlobalExtract(fs::path const& installFolder, fs::path const& extractF
     {
         fmt::print("Extracting {}...\n", name);
         stream_ptr arcStream{installFolder / arcPath};
-        TGAAC_ExtractARC(arcStream, extractFolder / name);
+        ARC_Archive arc;
+        arc.Load(arcStream);
+        TGAAC_WriteFolder_ARC(arc, extractFolder / name);
     }
 
-    using namespace rapidjson;
-    FILE* f = fopen((extractFolder / "__META__.json").c_str(), "wb");
-    if (f == nullptr)
-        throw runtime_error("Could not open file META.json");
-
-    char writeBuffer[65536];
-    FileWriteStream os{f, writeBuffer, sizeof(writeBuffer)};
-    PrettyWriter<FileWriteStream> json{os};
-
-    json.StartObject();
-    json.Key("entries");
-    json.StartObject();
-    for (auto& [name, arcPath] : mapNamePath)
-    {
-        json.Key(name.c_str());
-        json.String(arcPath.c_str());
-    }
-    json.EndObject();
-    json.EndObject();
-    fclose(f);
+    throw runtime_error("TODO: __meta__.xml");
 }

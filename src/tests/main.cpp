@@ -1,6 +1,7 @@
 // TGAAC_jv_patcher : Extract and modify scripts of The Great Ace Attorney Chronicles.
 // Copyright (C) 2023 Julien Vernay - Available as GNU GPL-3.0-or-later
 
+#include "../TGAAC_actions.hpp"
 #include "../TGAAC_file_ARC.hpp"
 #include "../TGAAC_file_GMD.hpp"
 #include "../Utility.hpp"
@@ -141,6 +142,21 @@ void test_ARC_Archive(TestCase& T, stream_ptr& arcStream)
             }
         }
     }
+
+    // Check WriteFolder/ReadFolder for supported folders
+
+    auto funcUnsupportedFormat = [](ARC_Entry const& entry) {
+        return entry.ext != ARC_ExtensionHash::GMD;
+    };
+    std::erase_if(arc.entries, funcUnsupportedFormat);
+
+    fs::remove_all("../test-tmp-arc");
+    TGAAC_WriteFolder_ARC(arc, "../test-tmp-arc");
+
+    ARC_Archive arc2;
+    TGAAC_ReadFolder_ARC(arc2, "../test-tmp-arc");
+
+    T.Check(arc == arc2, "ARC WriteFolder() and ReadFolder() are not symmetrical");
 }
 
 void test_GMD_Archive(TestCase& T, stream_ptr& gmdStream)
@@ -151,14 +167,13 @@ void test_GMD_Archive(TestCase& T, stream_ptr& gmdStream)
     GMD_Registry gmd;
     gmd.Load(gmdStream);
 
-    fs::remove_all("../test-tmp");
-    fs::create_directory("../test-tmp");
-    gmd.WriteFiles("../test-tmp");
+    fs::remove_all("../test-tmp-gmd");
+    TGAAC_WriteFolder_GMD(gmd, "../test-tmp-gmd");
 
     GMD_Registry gmd2;
-    gmd2.ReadFiles("../test-tmp");
+    TGAAC_ReadFolder_GMD(gmd2, "../test-tmp-gmd");
 
-    T.Check(gmd == gmd2, "GMD WriteFiles() and ReadFiles() are not symmetrical");
+    T.Check(gmd == gmd2, "GMD WriteFolder() and ReadFolder() are not symmetrical");
 
     stream_ptr gmdOut{fmt::format("out--{}", gmdStream.Name()), std::string{}};
     gmd.Save(gmdOut);

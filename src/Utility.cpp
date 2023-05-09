@@ -83,10 +83,10 @@ std::string stream_ptr::ReadAll()
     return result;
 }
 
-void EnsureEmptyDirectory(fs::path const& folder)
+void CreateEmptyDirectory(fs::path const& folder)
 {
-    if (fs::status(folder).type() != fs::file_type::directory)
-        throw ::runtime_error("Not a directory: {}", folder.string());
+    if (!fs::exists(folder))
+        fs::create_directories(folder);
     for (fs::path const& entry : fs::directory_iterator(folder))
         throw ::runtime_error("Not an empty directory, found {} in {}",
                               entry.filename().string(), folder.string());

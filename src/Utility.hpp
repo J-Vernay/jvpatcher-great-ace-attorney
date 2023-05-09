@@ -19,10 +19,6 @@
 
 #include <fmt/format.h>
 #include <pugixml.hpp>
-#include <rapidjson/filewritestream.h>
-#include <rapidjson/prettywriter.h>
-#include <rapidjson/rapidjson.h>
-#include <rapidjson/stringbuffer.h>
 
 #include <archive_crc32.h> // crc32(seed, data, size)
 
@@ -66,7 +62,7 @@ class stream_ptr : public std::unique_ptr<std::streambuf>
 std::string ConvertToID(std::string_view input);
 
 /// Throw an exception if given path is not an empty directory.
-void EnsureEmptyDirectory(fs::path const& folder);
+void CreateEmptyDirectory(fs::path const& folder);
 
 //
 // ==================== IMPLEMENTATION ====================

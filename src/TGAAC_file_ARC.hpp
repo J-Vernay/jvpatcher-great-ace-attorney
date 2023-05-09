@@ -29,13 +29,11 @@ struct ARC_Entry
 struct ARC_Archive
 {
     uint16_t version;
-    std::vector<ARC_Entry> entries;
     bool hasExtendedNames;
+    std::vector<ARC_Entry> entries;
 
     void Load(stream_ptr& in);
     void Save(stream_ptr& out) const;
-    void ReadFiles(fs::path const& inFolder);
-    void WriteFiles(fs::path const& outFolder) const;
 
     bool operator==(ARC_Archive const&) const noexcept = default;
 };

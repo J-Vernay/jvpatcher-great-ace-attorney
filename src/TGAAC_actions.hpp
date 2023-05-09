@@ -10,10 +10,20 @@
 
 #include "Utility.hpp"
 
-// 'destFolder' must be empty or non-existent.
+struct GMD_Registry;
+struct ARC_Archive;
 
-void TGAAC_ExtractGMD(stream_ptr& gmdStream, fs::path const& destFolder);
-void TGAAC_ExtractARC(stream_ptr& arcStream, fs::path const& destFolder);
+/// Serialize assets content on filesystem as separate files,
+/// to make editing easier and conflict-less.
+/// Note that only supported entries (which have an ARC_ExtensionHash
+/// enumerant value) will be extracted on filesystem.
+
+void TGAAC_WriteFolder_ARC(ARC_Archive const& arc, fs::path const& outFolder);
+void TGAAC_WriteFolder_GMD(GMD_Registry const& gmd, fs::path const& outFolder);
+
+void TGAAC_ReadFolder_ARC(ARC_Archive& arc, fs::path const& inFolder);
+void TGAAC_ReadFolder_GMD(GMD_Registry& gmd, fs::path const& inFolder);
+
 void TGAAC_GlobalExtract(fs::path const& installFolder, fs::path const& extractFolder);
 
 #endif

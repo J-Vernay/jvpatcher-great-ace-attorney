@@ -26,8 +26,6 @@ struct GMD_Registry
 
     void Load(stream_ptr& in);
     void Save(stream_ptr& out) const;
-    void ReadFiles(fs::path const& inFolder);
-    void WriteFiles(fs::path const& outFolder) const;
 
     bool operator==(GMD_Registry const&) const noexcept = default;
 };

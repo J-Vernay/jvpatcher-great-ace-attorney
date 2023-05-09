@@ -223,67 +223,6 @@ void GMD_Registry::Save(stream_ptr& out) const
     out.Sync();
 }
 
-void GMD_Registry::WriteFiles(fs::path const& outFolder) const
-{
-    EnsureEmptyDirectory(outFolder);
-
-    // Create metafile, storing Registry infos which are not part of entries.
-    pugi::xml_document xmlMeta;
-    pugi::xml_node xmlRoot = xmlMeta.append_child("GMD_Registry");
-
-    xmlRoot.append_child("version").text().set(version);
-    xmlRoot.append_child("language").text().set(language);
-    xmlRoot.append_child("name").text().set(name.c_str());
-    xmlRoot.append_child("_padding").text().set(_padding);
-
-    pugi::xml_node xmlEntries = xmlRoot.append_child("entries");
-    for (GMD_Entry const& entry : entries)
-    {
-        std::string entryFilename = ConvertToID(entry.key) + ".txt";
-        pugi::xml_node xmlEntry = xmlEntries.append_child("GMD_Entry");
-        xmlEntry.append_attribute("key").set_value(entry.key.c_str());
-        xmlEntry.text().set(entryFilename.c_str());
-
-        stream_ptr{outFolder / entryFilename, std::ios::out}.Write(
-            std::span{entry.value});
-    }
-
-    xmlMeta.save_file((outFolder / "__meta__.xml").string().c_str());
-}
-
-void GMD_Registry::ReadFiles(fs::path const& inFolder)
-{
-    *this = {};
-
-    // Create metafile, storing Registry infos which are not part of entries.
-    pugi::xml_document xmlMeta;
-    pugi::xml_parse_result result =
-        xmlMeta.load_file((inFolder / "__meta__.xml").string().c_str());
-
-    if (!result)
-        throw runtime_error("GMD meta error: {} at {}", result.description(),
-                            result.offset);
-
-    pugi::xml_node xmlRoot = xmlMeta.child("GMD_Registry");
-
-    version = xmlRoot.child("version").text().as_ullong();
-    language = xmlRoot.child("language").text().as_ullong();
-    name = xmlRoot.child("name").text().as_string();
-    _padding = xmlRoot.child("_padding").text().as_ullong();
-
-    pugi::xml_node xmlEntries = xmlRoot.child("entries");
-    for (auto xmlEntry = xmlEntries.first_child(); xmlEntry;
-         xmlEntry = xmlEntry.next_sibling())
-    {
-        std::string key = xmlEntry.attribute("key").value();
-        std::string entryFilename = xmlEntry.text().as_string();
-
-        auto& entry = entries.emplace_back();
-        entry.key = std::move(key);
-        entry.value = stream_ptr{inFolder / entryFilename}.ReadAll();
-    }
-}
-
 std::string GMD_EscapeEntryJV(std::string_view input)
 {
     std::string result;
