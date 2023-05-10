@@ -3,8 +3,7 @@
 
 #include "TGAAC_file_GMD.hpp"
 #include "Utility.hpp"
-#include <rapidjson/prettywriter.h>
-#include <rapidjson/stringbuffer.h>
+#include <utility>
 
 // GMD parser based on
 // https://github.com/IcySon55/Kuriimu/blob/master/src/text/text_gmd/GMDv2.cs
@@ -223,6 +222,8 @@ void GMD_Registry::Save(stream_ptr& out) const
     out.Sync();
 }
 
+/*
+
 std::string GMD_EscapeEntryJV(std::string_view input)
 {
     std::string result;
@@ -303,3 +304,4 @@ std::string GMD_EscapeEntryJV(std::string_view input)
 
     return result;
 }
+*/
