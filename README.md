@@ -31,10 +31,10 @@ And without the following free (as in freedom) libraries:
 - fmtlib : https://github.com/fmtlib/fmt  
   Under MIT license:  
   Copyright (c) 2012 - present, Victor Zverovich and {fmt} contributors
-- libarchive :
-  Mostly under 2-clause BSD license:
-  Copyright (c) 2003-2018 Tim Kientzle
-- pugixml : https://pugixml.org/
-  Under MIT license:
+- libarchive : https://www.libarchive.org/  
+  Mostly under 2-clause BSD license:  
+  Copyright (c) 2003-2018 Tim Kientzle  
+- pugixml : https://pugixml.org/  
+  Under MIT license:  
   Copyright (c) 2006-2018 Arseny Kapoulkine
 
